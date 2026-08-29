@@ -881,21 +881,26 @@ Window {
                                 Layout.preferredHeight: 42
                                 Layout.alignment: Qt.AlignVCenter
                                 radius: 21
-                                color: appTheme.alpha(homeShadow.state === "error"
-                                                      ? appTheme.urgent : appTheme.accent, 0.10)
+                                color: appTheme.alpha(
+                                           homeShadow.state === "error"
+                                           ? appTheme.urgent
+                                           : homeShadow.state === "waiting" ||
+                                             homeShadow.state === "unconfigured"
+                                             ? appTheme.muted : appTheme.accent,
+                                           0.10)
                                 border.width: 1
-                                border.color: appTheme.alpha(homeShadow.state === "error"
-                                                             ? appTheme.urgent : appTheme.accent, 0.28)
-                                Text {
+                                border.color: appTheme.alpha(
+                                                  homeShadow.state === "error"
+                                                  ? appTheme.urgent
+                                                  : homeShadow.state === "waiting" ||
+                                                    homeShadow.state === "unconfigured"
+                                                    ? appTheme.muted : appTheme.accent,
+                                                  0.28)
+                                ShadowGhost {
                                     anchors.centerIn: parent
-                                    text: homeShadow.state === "current" ? "✓"
-                                          : homeShadow.state === "running" ? "···"
-                                          : homeShadow.state === "error" ? "!" : "◐"
-                                    color: homeShadow.state === "error"
-                                           ? appTheme.urgent : appTheme.accent
-                                    font.family: appTheme.sansFont
-                                    font.pixelSize: 17
-                                    font.weight: Font.DemiBold
+                                    width: 27
+                                    height: 30
+                                    status: homeShadow.state
                                 }
                             }
 

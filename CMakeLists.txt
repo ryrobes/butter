@@ -38,6 +38,7 @@ qt_add_qml_module(butter
         qml/ButterWordmark.qml
         qml/ChromeButton.qml
         qml/RecoveryRail.qml
+        qml/ShadowGhost.qml
         qml/SpaceArc.qml
         qml/SpaceHistoryArea.qml
         qml/Surface.qml
