@@ -5,7 +5,7 @@ Item {
     property var samples: []
     property color traceColor: appTheme.accent
 
-    visible: samples && samples.length > 1
+    visible: samples && samples.length > 0
 
     Canvas {
         id: canvas
@@ -15,7 +15,7 @@ Item {
         onPaint: {
             var ctx = getContext("2d")
             ctx.reset()
-            if (!root.samples || root.samples.length < 2)
+            if (!root.samples || root.samples.length < 1)
                 return
 
             var firstTime = Number(root.samples[0].atMs)
@@ -31,6 +31,8 @@ Item {
                 var ratio = Math.max(0, Math.min(1, Number(sample.freeRatio)))
                 points.push({ x: x, y: bottom - ratio * plotHeight })
             }
+            if (points.length === 1)
+                points.push({ x: width, y: points[0].y })
 
             function tracePath() {
                 ctx.beginPath()

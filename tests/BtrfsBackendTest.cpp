@@ -10,6 +10,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -349,8 +350,29 @@ void BtrfsBackendTest::preservesShadowGenerations() {
 
   const QString helper = QDir(QCoreApplication::applicationDirPath())
                              .filePath(QStringLiteral("butter-shadow"));
-  auto run = [&](int expectedExitCode = 0) {
+  QTemporaryDir fakeTools;
+  QVERIFY(fakeTools.isValid());
+  const QString fakeRsync =
+      QDir(fakeTools.path()).filePath(QStringLiteral("rsync"));
+  QVERIFY(writeFile(
+      fakeRsync, QByteArrayLiteral(
+                     "#!/bin/sh\n"
+                     "echo 'rsync: [receiver] mkstemp \"/backup/file\" failed: "
+                     "Permission denied (13)' >&2\n"
+                     "exit 23\n")));
+  QVERIFY(QFile::setPermissions(fakeRsync, QFileDevice::ReadOwner |
+                                               QFileDevice::WriteOwner |
+                                               QFileDevice::ExeOwner));
+  auto run = [&](int expectedExitCode = 0, bool forceFailure = false) {
     QProcess process;
+    if (forceFailure) {
+      QProcessEnvironment environment =
+          QProcessEnvironment::systemEnvironment();
+      environment.insert(QStringLiteral("PATH"),
+                         fakeTools.path() + QDir::listSeparator() +
+                             environment.value(QStringLiteral("PATH")));
+      process.setProcessEnvironment(environment);
+    }
     process.start(helper, {QStringLiteral("--run"), QStringLiteral("--config"),
                            configPath, QStringLiteral("--status"), statusPath,
                            QStringLiteral("--history"), historyPath});
@@ -400,8 +422,29 @@ void BtrfsBackendTest::preservesShadowGenerations() {
       QDir(source.path()).filePath(QStringLiteral("blocked.txt"));
   QVERIFY(writeFile(blockedPath, QByteArrayLiteral("finish me")));
   QVERIFY(QFile::setPermissions(blockedPath, {}));
-  run(1);
+  run();
 
+  QFile skippedStatus(statusPath);
+  QVERIFY(skippedStatus.open(QIODevice::ReadOnly));
+  const QJsonObject skipped =
+      QJsonDocument::fromJson(skippedStatus.readAll()).object();
+  QCOMPARE(skipped.value(QStringLiteral("state")).toString(),
+           QStringLiteral("current"));
+  QCOMPARE(skipped.value(QStringLiteral("skippedPathCount")).toInt(), 1);
+  QCOMPARE(
+      skipped.value(QStringLiteral("skippedAccessErrors")).toArray().size(), 1);
+
+  QVERIFY(QFile::setPermissions(blockedPath, QFileDevice::ReadOwner |
+                                                 QFileDevice::WriteOwner));
+
+  const QString incompletePath =
+      QDir(shadowRoot).filePath(QStringLiteral("incomplete/manual-resume"));
+  QVERIFY(QDir().mkpath(incompletePath));
+  QVERIFY(ShadowCommon::saveStatus(
+      statusPath, QStringLiteral("error"), QStringLiteral("test failure"),
+      QStringLiteral("test failure"),
+      {{QStringLiteral("incompletePath"), incompletePath}}));
+  run(1, true);
   QFile failedStatus(statusPath);
   QVERIFY(failedStatus.open(QIODevice::ReadOnly));
   const QJsonObject failure =
@@ -410,12 +453,9 @@ void BtrfsBackendTest::preservesShadowGenerations() {
            QStringLiteral("error"));
   QCOMPARE(failure.value(QStringLiteral("rsyncExitCode")).toInt(), 23);
   QVERIFY(!failure.value(QStringLiteral("errorLines")).toArray().isEmpty());
-  const QString incompletePath =
-      failure.value(QStringLiteral("incompletePath")).toString();
-  QVERIFY(QFileInfo(incompletePath).isDir());
+  QCOMPARE(failure.value(QStringLiteral("incompletePath")).toString(),
+           incompletePath);
 
-  QVERIFY(QFile::setPermissions(blockedPath, QFileDevice::ReadOwner |
-                                                 QFileDevice::WriteOwner));
   run();
   QVERIFY(!QFileInfo::exists(incompletePath));
   const QString resumedGeneration =

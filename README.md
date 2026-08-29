@@ -72,6 +72,10 @@ incomplete area; **Try again** resumes that same tree and promotes it only after
 a clean run. Butter keeps a bounded rsync error summary so a partial transfer
 does not silently fall back to “ready.”
 
+Source folders or files that explicitly return “permission denied” are recorded
+as skipped and do not prevent promotion when they are the only rsync errors.
+Receiver-side, destination, I/O, and metadata failures still stop promotion.
+
 The initial exclusions combine a conservative cache baseline with exact
 regenerable artifact paths found by the Home scan. Completed scans refresh that
 filter list for future runs. Python environments remain review-only. The

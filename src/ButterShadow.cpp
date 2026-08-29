@@ -1,6 +1,8 @@
 #include "ShadowCommon.h"
 #include "SpaceHistory.h"
 
+#include <algorithm>
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -77,21 +79,35 @@ QString resumablePath(const QString &statusFile,
   return candidate;
 }
 
-QStringList boundedErrors(const QString &standardError) {
+QStringList substantiveErrors(const QString &standardError) {
   QStringList useful;
   for (QString line :
        standardError.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
     line = line.trimmed();
     if (line.isEmpty() || line.startsWith(QLatin1String("rsync error:")))
       continue;
-    if (line.size() > 320)
-      line = line.left(317) + QStringLiteral("...");
     if (!useful.contains(line))
       useful.push_back(line);
   }
+  return useful;
+}
+
+QStringList boundedErrors(const QStringList &errors) {
+  QStringList useful = errors;
   if (useful.size() > 6)
     useful = useful.sliced(useful.size() - 6);
+  for (QString &line : useful) {
+    if (line.size() > 320)
+      line = line.left(317) + QStringLiteral("...");
+  }
   return useful;
+}
+
+bool isUnreadableSourcePath(const QString &error) {
+  return error.startsWith(QLatin1String("rsync: [sender] ")) &&
+         error.endsWith(QLatin1String("Permission denied (13)")) &&
+         (error.contains(QLatin1String(" opendir ")) ||
+          error.contains(QLatin1String(" send_files failed to open ")));
 }
 
 } // namespace
@@ -252,11 +268,17 @@ int main(int argc, char *argv[]) {
   const QByteArray output = process.readAllStandardOutput();
   const QString standardError =
       QString::fromUtf8(process.readAllStandardError()).trimmed();
+  const QStringList allErrors = substantiveErrors(standardError);
   const bool sourceChangedDuringCopy =
       process.exitStatus() == QProcess::NormalExit && process.exitCode() == 24;
+  const bool skippedUnreadablePaths =
+      process.exitStatus() == QProcess::NormalExit &&
+      process.exitCode() == 23 && !allErrors.isEmpty() &&
+      std::all_of(allErrors.cbegin(), allErrors.cend(), isUnreadableSourcePath);
   if (process.exitStatus() != QProcess::NormalExit ||
-      (process.exitCode() != 0 && !sourceChangedDuringCopy)) {
-    const QStringList errorLines = boundedErrors(standardError);
+      (process.exitCode() != 0 && !sourceChangedDuringCopy &&
+       !skippedUnreadablePaths)) {
+    const QStringList errorLines = boundedErrors(allErrors);
     QJsonArray errors;
     for (const QString &line : errorLines)
       errors.push_back(line);
@@ -305,6 +327,11 @@ int main(int argc, char *argv[]) {
       QDir(generations)
           .entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)
           .size();
+  QJsonArray skippedPaths;
+  if (skippedUnreadablePaths) {
+    for (const QString &line : allErrors)
+      skippedPaths.push_back(line);
+  }
   const QJsonObject receipt = {
       {QStringLiteral("schema"), 1},
       {QStringLiteral("generation"), generationName},
@@ -315,21 +342,33 @@ int main(int argc, char *argv[]) {
        static_cast<qint64>(transferredBytes)},
       {QStringLiteral("generationCount"), generationCount},
       {QStringLiteral("excludedPaths"), config.excludes.size()},
+      {QStringLiteral("skippedPathCount"), skippedPaths.size()},
+      {QStringLiteral("skippedAccessErrors"), skippedPaths},
       {QStringLiteral("resumed"), resumed}};
   ShadowCommon::saveJson(
       QDir(receipts).filePath(generationName + QStringLiteral(".json")),
       receipt, nullptr);
-  return finish(
-      QStringLiteral("current"),
-      sourceChangedDuringCopy
-          ? QStringLiteral("Home Shadow captured a changing Home")
-          : QStringLiteral("Home Shadow is current"),
-      QStringLiteral("%1 completed generation%2 · %3")
-          .arg(generationCount)
-          .arg(generationCount == 1 ? QString() : QStringLiteral("s"))
-          .arg(sourceChangedDuringCopy
-                   ? QStringLiteral(
-                         "a few transient files vanished during the copy")
-                   : QStringLiteral("nothing is pruned automatically")),
-      receipt, 0);
+
+  QString completionTitle = QStringLiteral("Home Shadow is current");
+  QString completionNote = QStringLiteral("nothing is pruned automatically");
+  if (skippedUnreadablePaths) {
+    completionTitle =
+        QStringLiteral("Home Shadow skipped %1 unreadable path%2")
+            .arg(skippedPaths.size())
+            .arg(skippedPaths.size() == 1 ? QString() : QStringLiteral("s"));
+    completionNote =
+        QStringLiteral("%1 source path%2 could not be read")
+            .arg(skippedPaths.size())
+            .arg(skippedPaths.size() == 1 ? QString() : QStringLiteral("s"));
+  } else if (sourceChangedDuringCopy) {
+    completionTitle = QStringLiteral("Home Shadow captured a changing Home");
+    completionNote =
+        QStringLiteral("a few transient files vanished during the copy");
+  }
+  return finish(QStringLiteral("current"), completionTitle,
+                QStringLiteral("%1 completed generation%2 · %3")
+                    .arg(generationCount)
+                    .arg(generationCount == 1 ? QString() : QStringLiteral("s"))
+                    .arg(completionNote),
+                receipt, 0);
 }
