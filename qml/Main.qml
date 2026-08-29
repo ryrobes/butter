@@ -1439,14 +1439,28 @@ Window {
                 font.letterSpacing: 1.4
             }
             Item { Layout.preferredHeight: 9 }
-            Text {
+            RowLayout {
                 Layout.fillWidth: true
-                text: root.shadowCandidate.title || "Choose another folder"
-                color: appTheme.brightForeground
-                font.family: appTheme.sansFont
-                font.pixelSize: 23
-                font.weight: Font.DemiBold
-                wrapMode: Text.WordWrap
+                spacing: 18
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.shadowCandidate.title || "Choose another folder"
+                    color: appTheme.brightForeground
+                    font.family: appTheme.sansFont
+                    font.pixelSize: 23
+                    font.weight: Font.DemiBold
+                    wrapMode: Text.WordWrap
+                }
+
+                ButterGlyph {
+                    visible: Boolean(root.shadowCandidate.valid)
+                    Layout.preferredWidth: 70
+                    Layout.preferredHeight: 51
+                    variant: "stick"
+                    lineColor: appTheme.accent
+                    opacity: 0.58
+                }
             }
             Item { Layout.preferredHeight: 7 }
             Text {

@@ -31,6 +31,7 @@ qt_add_qml_module(butter
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/ButterGlyph.qml
         qml/ButterMark.qml
         qml/ButterWordmark.qml
         qml/ChromeButton.qml
@@ -41,6 +42,8 @@ qt_add_qml_module(butter
         qml/Treemap.qml
     RESOURCES
         assets/butter.svg
+        assets/butter-dish.svg
+        assets/butter-stick.svg
         assets/butter-wordmark.svg
 )
 
