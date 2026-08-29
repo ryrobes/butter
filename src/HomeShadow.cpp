@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
@@ -326,6 +327,7 @@ void HomeShadow::refresh() {
     m_title = QStringLiteral("Your files still live on one drive");
     m_detail = QStringLiteral(
         "Create a quiet second copy of Home without rebuildable weight.");
+    m_issues.clear();
     emit changed();
     return;
   }
@@ -359,6 +361,7 @@ void HomeShadow::refresh() {
         "a new first copy.");
     m_generationCount = 0;
     m_lastRun.clear();
+    m_issues.clear();
     emit changed();
     return;
   }
@@ -368,6 +371,7 @@ void HomeShadow::refresh() {
     m_title = QStringLiteral("Waiting for the Shadow drive");
     m_detail = QStringLiteral("Connect the same drive; Butter will never write "
                               "into its empty mount path.");
+    m_issues.clear();
     emit changed();
     return;
   }
@@ -377,6 +381,7 @@ void HomeShadow::refresh() {
     m_title = QStringLiteral("The daily schedule needs attention");
     m_detail = QStringLiteral("The Shadow is configured, but its user timer is "
                               "not enabled. Run now still works.");
+    m_issues.clear();
     emit changed();
     return;
   }
@@ -398,6 +403,26 @@ void HomeShadow::refresh() {
     m_detail = status.value(QStringLiteral("detail")).toString();
     m_lastRun =
         friendlyTime(status.value(QStringLiteral("finishedAt")).toString());
+    m_issues.clear();
+    const QString issueKey = m_state == QLatin1String("error")
+                                 ? QStringLiteral("errorLines")
+                                 : QStringLiteral("skippedAccessErrors");
+    m_issues = status.value(issueKey).toArray().toVariantList();
+    if (m_state != QLatin1String("error")) {
+      const QVariantList sourceChanges =
+          status.value(QStringLiteral("sourceChangeWarnings"))
+              .toArray()
+              .toVariantList();
+      m_issues.append(sourceChanges);
+      if (!m_issues.isEmpty()) {
+        m_title = QStringLiteral("Home Shadow is current");
+        m_detail =
+            QStringLiteral("%1 completed generation%2 · nothing is pruned "
+                           "automatically")
+                .arg(m_generationCount)
+                .arg(m_generationCount == 1 ? QString() : QStringLiteral("s"));
+      }
+    }
     const bool controlRunning =
         m_controlProcess && m_controlProcess->state() != QProcess::NotRunning;
     m_busy = controlRunning || m_state == QLatin1String("running");
@@ -407,6 +432,7 @@ void HomeShadow::refresh() {
     m_detail = QStringLiteral(
         "Daily when connected · completed generations are never pruned.");
     m_busy = false;
+    m_issues.clear();
   }
   emit changed();
 }

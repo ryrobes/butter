@@ -16,6 +16,14 @@ Window {
     property var reviewedSpaceFinding: ({})
     property var shadowCandidate: ({})
     property bool shadowFiltersCaptured: false
+    property bool shadowDetailsExpanded: false
+    readonly property int visibleShadowIssueCount:
+        Math.min(4, homeShadow.issues.length)
+    readonly property bool showShadowDetails:
+        shadowDetailsExpanded && homeShadow.issues.length > 0
+    readonly property int shadowDetailsHeight:
+        34 + visibleShadowIssueCount * 20 +
+        (homeShadow.issues.length > visibleShadowIssueCount ? 16 : 0)
     readonly property var reviewedFinding: filesystem.auditFindingCount > 0
                                            ? filesystem.auditFindings[0] : ({})
 
@@ -863,7 +871,9 @@ Window {
 
                     Surface {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 124
+                        Layout.preferredHeight: root.showShadowDetails
+                                                ? 136 + root.shadowDetailsHeight
+                                                : 124
                         elevated: homeShadow.state === "current" ||
                                   homeShadow.state === "running"
                         tint: homeShadow.state === "current"
@@ -872,15 +882,18 @@ Window {
                               : "transparent"
 
                         RowLayout {
-                            anchors.fill: parent
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
                             anchors.margins: 20
+                            height: 84
                             spacing: 17
 
                             Rectangle {
-                                Layout.preferredWidth: 42
-                                Layout.preferredHeight: 42
+                                Layout.preferredWidth: 50
+                                Layout.preferredHeight: 50
                                 Layout.alignment: Qt.AlignVCenter
-                                radius: 21
+                                radius: 25
                                 color: appTheme.alpha(
                                            homeShadow.state === "error"
                                            ? appTheme.urgent
@@ -898,6 +911,8 @@ Window {
                                                   0.28)
                                 ShadowGhost {
                                     anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: -1
+                                    anchors.verticalCenterOffset: -1.5
                                     width: 27
                                     height: 30
                                     status: homeShadow.state
@@ -981,6 +996,29 @@ Window {
                                         font.family: appTheme.sansFont
                                         font.pixelSize: 10
                                     }
+                                    Text {
+                                        id: shadowDetailsToggle
+                                        Layout.fillWidth: true
+                                        visible: homeShadow.issues.length > 0
+                                        text: (homeShadow.state === "error"
+                                               ? "ERROR DETAILS"
+                                               : "RUN DETAILS") + "  ·  " +
+                                              homeShadow.issues.length +
+                                              (root.shadowDetailsExpanded ? "  ↑" : "  ↓")
+                                        color: detailsHover.hovered
+                                               ? appTheme.foreground : appTheme.muted
+                                        font.family: appTheme.monoFont
+                                        font.pixelSize: 9
+                                        font.letterSpacing: 0.6
+                                        Layout.preferredHeight: visible ? 18 : 0
+                                        verticalAlignment: Text.AlignVCenter
+
+                                        HoverHandler { id: detailsHover }
+                                        TapHandler {
+                                            onTapped: root.shadowDetailsExpanded =
+                                                          !root.shadowDetailsExpanded
+                                        }
+                                    }
                                 }
                             }
 
@@ -1000,6 +1038,83 @@ Window {
                                         homeShadow.runNow()
                                     else
                                         shadowFolderDialog.open()
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            visible: root.showShadowDetails
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.margins: 20
+                            height: root.shadowDetailsHeight
+                            radius: Math.max(6, appTheme.radius - 3)
+                            color: appTheme.alpha(appTheme.foreground, 0.035)
+                            border.width: 1
+                            border.color: appTheme.alpha(appTheme.foreground, 0.10)
+
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 4
+
+                                Text {
+                                    text: homeShadow.state === "error"
+                                          ? "WHAT STOPPED THE COPY"
+                                          : "NOT COPIED FROM HOME"
+                                    color: homeShadow.state === "error"
+                                           ? appTheme.alpha(appTheme.urgent, 0.82)
+                                           : appTheme.alpha(appTheme.foreground, 0.62)
+                                    font.family: appTheme.monoFont
+                                    font.pixelSize: 8
+                                    font.letterSpacing: 1.0
+                                    height: 14
+                                }
+
+                                Repeater {
+                                    model: homeShadow.issues
+
+                                    Row {
+                                        required property var modelData
+                                        required property int index
+                                        visible: index < root.visibleShadowIssueCount
+                                        width: parent.width
+                                        height: visible ? 16 : 0
+                                        spacing: 7
+
+                                        Rectangle {
+                                            width: 3
+                                            height: 3
+                                            radius: 2
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            color: appTheme.alpha(
+                                                       homeShadow.state === "error"
+                                                       ? appTheme.urgent : appTheme.accent,
+                                                       0.64)
+                                        }
+                                        Text {
+                                            width: parent.width - 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: String(parent.modelData)
+                                            color: appTheme.alpha(appTheme.foreground, 0.68)
+                                            font.family: appTheme.monoFont
+                                            font.pixelSize: 10
+                                            elide: Text.ElideMiddle
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    visible: homeShadow.issues.length >
+                                             root.visibleShadowIssueCount
+                                    text: "+ " + (homeShadow.issues.length -
+                                                   root.visibleShadowIssueCount) +
+                                          " more recorded in this run"
+                                    color: appTheme.muted
+                                    font.family: appTheme.monoFont
+                                    font.pixelSize: 8
+                                    height: visible ? 12 : 0
                                 }
                             }
                         }

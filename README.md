@@ -90,7 +90,9 @@ Source folders or files that explicitly return “permission denied” are recor
 as skipped and do not prevent promotion. Files that vanish while a live app is
 changing them are recorded separately and are also safe to skip—even when both
 conditions occur in the same run. Receiver-side, destination, I/O, and metadata
-failures still stop promotion.
+failures still stop promotion. Safe source-side skips do not replace the normal
+“current” status; their exact evidence remains available in the expandable run
+details.
 
 The initial exclusions combine recursive, universally disposable caches with
 exact regenerable artifact paths found by the Home scan, including small

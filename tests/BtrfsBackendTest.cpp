@@ -496,6 +496,8 @@ void BtrfsBackendTest::preservesShadowGenerations() {
       QJsonDocument::fromJson(skippedStatus.readAll()).object();
   QCOMPARE(skipped.value(QStringLiteral("state")).toString(),
            QStringLiteral("current"));
+  QCOMPARE(skipped.value(QStringLiteral("title")).toString(),
+           QStringLiteral("Home Shadow is current"));
   QCOMPARE(skipped.value(QStringLiteral("skippedPathCount")).toInt(), 1);
   QCOMPARE(
       skipped.value(QStringLiteral("skippedAccessErrors")).toArray().size(), 1);

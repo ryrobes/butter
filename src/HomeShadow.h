@@ -18,6 +18,7 @@ class HomeShadow : public QObject {
   Q_PROPERTY(QString filesystem READ filesystem NOTIFY changed)
   Q_PROPERTY(QString lastRun READ lastRun NOTIFY changed)
   Q_PROPERTY(QString nextRun READ nextRun NOTIFY changed)
+  Q_PROPERTY(QVariantList issues READ issues NOTIFY changed)
   Q_PROPERTY(int generationCount READ generationCount NOTIFY changed)
   Q_PROPERTY(int exclusionCount READ exclusionCount NOTIFY changed)
   Q_PROPERTY(qulonglong excludedBytes READ excludedBytes NOTIFY changed)
@@ -34,6 +35,7 @@ public:
   QString filesystem() const { return m_filesystem; }
   QString lastRun() const { return m_lastRun; }
   QString nextRun() const { return m_nextRun; }
+  QVariantList issues() const { return m_issues; }
   int generationCount() const { return m_generationCount; }
   int exclusionCount() const { return m_exclusionCount; }
   qulonglong excludedBytes() const { return m_excludedBytes; }
@@ -62,6 +64,7 @@ private:
   QString m_filesystem;
   QString m_lastRun;
   QString m_nextRun = QStringLiteral("Daily when connected");
+  QVariantList m_issues;
   int m_generationCount = 0;
   int m_exclusionCount = 0;
   qulonglong m_excludedBytes = 0;

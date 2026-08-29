@@ -438,21 +438,7 @@ int main(int argc, char *argv[]) {
 
   QString completionTitle = QStringLiteral("Home Shadow is current");
   QString completionNote = QStringLiteral("nothing is pruned automatically");
-  if (!skippedPaths.isEmpty()) {
-    completionTitle =
-        QStringLiteral("Home Shadow skipped %1 unreadable path%2")
-            .arg(skippedPaths.size())
-            .arg(skippedPaths.size() == 1 ? QString() : QStringLiteral("s"));
-    completionNote =
-        QStringLiteral("%1 source path%2 could not be read")
-            .arg(skippedPaths.size())
-            .arg(skippedPaths.size() == 1 ? QString() : QStringLiteral("s"));
-    if (!sourceChanges.isEmpty())
-      completionNote +=
-          QStringLiteral(" · %1 live file%2 changed")
-              .arg(sourceChanges.size())
-              .arg(sourceChanges.size() == 1 ? QString() : QStringLiteral("s"));
-  } else if (exitedForChangingSource || !sourceChanges.isEmpty()) {
+  if (exitedForChangingSource || !sourceChanges.isEmpty()) {
     completionTitle = QStringLiteral("Home Shadow captured a changing Home");
     completionNote =
         QStringLiteral("a few transient files vanished during the copy");
