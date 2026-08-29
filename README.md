@@ -87,8 +87,10 @@ unfinished copy. Butter keeps a bounded rsync error summary so a partial
 transfer does not silently fall back to “ready.”
 
 Source folders or files that explicitly return “permission denied” are recorded
-as skipped and do not prevent promotion when they are the only rsync errors.
-Receiver-side, destination, I/O, and metadata failures still stop promotion.
+as skipped and do not prevent promotion. Files that vanish while a live app is
+changing them are recorded separately and are also safe to skip—even when both
+conditions occur in the same run. Receiver-side, destination, I/O, and metadata
+failures still stop promotion.
 
 The initial exclusions combine recursive, universally disposable caches with
 exact regenerable artifact paths found by the Home scan, including small

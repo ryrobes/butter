@@ -555,6 +555,56 @@ void BtrfsBackendTest::preservesShadowGenerations() {
   QCOMPARE(completion.value(QStringLiteral("state")).toString(),
            QStringLiteral("current"));
   QVERIFY(completion.value(QStringLiteral("resumed")).toBool());
+
+  const QString mixedIncompletePath =
+      QDir(shadowRoot).filePath(QStringLiteral("incomplete/manual-mixed"));
+  QVERIFY(QDir().mkpath(mixedIncompletePath));
+  QVERIFY(writeFile(QDir(mixedIncompletePath)
+                        .filePath(QStringLiteral("copied-before-warning.txt")),
+                    QByteArrayLiteral("keep the partial work")));
+  QVERIFY(ShadowCommon::saveStatus(
+      statusPath, QStringLiteral("error"), QStringLiteral("mixed source skip"),
+      QStringLiteral("mixed source skip"),
+      {{QStringLiteral("incompletePath"), mixedIncompletePath}}));
+  QVERIFY(writeFile(
+      fakeRsync,
+      QByteArrayLiteral(
+          "#!/bin/sh\n"
+          "echo 'file has vanished: \"/home/test/catalog.sqlite-shm\"' >&2\n"
+          "echo 'file has vanished: \"/home/test/catalog.sqlite-wal\"' >&2\n"
+          "echo 'rsync: [sender] opendir \"/home/test/volumes/db\" failed: "
+          "Permission denied (13)' >&2\n"
+          "echo 'rsync: [sender] opendir \"/home/test/old/volumes/db\" failed: "
+          "Permission denied (13)' >&2\n"
+          "echo 'rsync error: some files/attrs were not transferred (see "
+          "previous errors) (code 23) at main.c(1338) [sender=3.4.1]' >&2\n"
+          "exit 23\n")));
+  QVERIFY(QFile::setPermissions(fakeRsync, QFileDevice::ReadOwner |
+                                               QFileDevice::WriteOwner |
+                                               QFileDevice::ExeOwner));
+  run(0, true);
+  QVERIFY(!QFileInfo::exists(mixedIncompletePath));
+  const QString mixedGeneration =
+      QDir(shadowRoot)
+          .filePath(QStringLiteral("generations/") +
+                    QFileInfo(mixedIncompletePath).fileName());
+  QVERIFY(QFileInfo(mixedGeneration).isDir());
+  QVERIFY(QFileInfo::exists(
+      QDir(mixedGeneration)
+          .filePath(QStringLiteral("copied-before-warning.txt"))));
+  QFile mixedStatus(statusPath);
+  QVERIFY(mixedStatus.open(QIODevice::ReadOnly));
+  const QJsonObject mixed =
+      QJsonDocument::fromJson(mixedStatus.readAll()).object();
+  QCOMPARE(mixed.value(QStringLiteral("state")).toString(),
+           QStringLiteral("current"));
+  QCOMPARE(mixed.value(QStringLiteral("skippedPathCount")).toInt(), 2);
+  QCOMPARE(mixed.value(QStringLiteral("skippedAccessErrors")).toArray().size(),
+           2);
+  QCOMPARE(mixed.value(QStringLiteral("sourceChangeCount")).toInt(), 2);
+  QCOMPARE(mixed.value(QStringLiteral("sourceChangeWarnings")).toArray().size(),
+           2);
+  QVERIFY(mixed.value(QStringLiteral("resumed")).toBool());
 }
 
 void BtrfsBackendTest::validatesShadowDestinations() {

@@ -112,6 +112,18 @@ bool isUnreadableSourcePath(const QString &error) {
           error.contains(QLatin1String(" send_files failed to open ")));
 }
 
+bool isVanishedSourcePath(const QString &error) {
+  if (error.startsWith(QLatin1String("file has vanished: ")) ||
+      error.startsWith(QLatin1String(
+          "rsync warning: some files vanished before they could be ")))
+    return true;
+  return error.startsWith(QLatin1String("rsync: [sender] ")) &&
+         error.endsWith(QLatin1String("No such file or directory (2)")) &&
+         (error.contains(QLatin1String(" link_stat ")) ||
+          error.contains(QLatin1String(" readlink_stat ")) ||
+          error.contains(QLatin1String(" send_files failed to open ")));
+}
+
 bool removeIncompleteEntry(const QString &path) {
   const QFileInfo info(path);
   if (!info.exists() && !info.isSymLink())
@@ -336,15 +348,18 @@ int main(int argc, char *argv[]) {
   const QString standardError =
       QString::fromUtf8(process.readAllStandardError()).trimmed();
   const QStringList allErrors = substantiveErrors(standardError);
-  const bool sourceChangedDuringCopy =
+  const bool exitedForChangingSource =
       process.exitStatus() == QProcess::NormalExit && process.exitCode() == 24;
-  const bool skippedUnreadablePaths =
+  const bool onlySkippableSourceErrors =
       process.exitStatus() == QProcess::NormalExit &&
       process.exitCode() == 23 && !allErrors.isEmpty() &&
-      std::all_of(allErrors.cbegin(), allErrors.cend(), isUnreadableSourcePath);
+      std::all_of(
+          allErrors.cbegin(), allErrors.cend(), [](const QString &line) {
+            return isUnreadableSourcePath(line) || isVanishedSourcePath(line);
+          });
   if (process.exitStatus() != QProcess::NormalExit ||
-      (process.exitCode() != 0 && !sourceChangedDuringCopy &&
-       !skippedUnreadablePaths)) {
+      (process.exitCode() != 0 && !exitedForChangingSource &&
+       !onlySkippableSourceErrors)) {
     const QStringList errorLines = boundedErrors(allErrors);
     QJsonArray errors;
     for (const QString &line : errorLines)
@@ -395,9 +410,12 @@ int main(int argc, char *argv[]) {
           .entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)
           .size();
   QJsonArray skippedPaths;
-  if (skippedUnreadablePaths) {
-    for (const QString &line : allErrors)
+  QJsonArray sourceChanges;
+  for (const QString &line : allErrors) {
+    if (isUnreadableSourcePath(line))
       skippedPaths.push_back(line);
+    else if (isVanishedSourcePath(line))
+      sourceChanges.push_back(line);
   }
   const QJsonObject receipt = {
       {QStringLiteral("schema"), 1},
@@ -411,6 +429,8 @@ int main(int argc, char *argv[]) {
       {QStringLiteral("excludedPaths"), config.excludes.size()},
       {QStringLiteral("skippedPathCount"), skippedPaths.size()},
       {QStringLiteral("skippedAccessErrors"), skippedPaths},
+      {QStringLiteral("sourceChangeCount"), sourceChanges.size()},
+      {QStringLiteral("sourceChangeWarnings"), sourceChanges},
       {QStringLiteral("resumed"), resumed}};
   ShadowCommon::saveJson(
       QDir(receipts).filePath(generationName + QStringLiteral(".json")),
@@ -418,7 +438,7 @@ int main(int argc, char *argv[]) {
 
   QString completionTitle = QStringLiteral("Home Shadow is current");
   QString completionNote = QStringLiteral("nothing is pruned automatically");
-  if (skippedUnreadablePaths) {
+  if (!skippedPaths.isEmpty()) {
     completionTitle =
         QStringLiteral("Home Shadow skipped %1 unreadable path%2")
             .arg(skippedPaths.size())
@@ -427,7 +447,12 @@ int main(int argc, char *argv[]) {
         QStringLiteral("%1 source path%2 could not be read")
             .arg(skippedPaths.size())
             .arg(skippedPaths.size() == 1 ? QString() : QStringLiteral("s"));
-  } else if (sourceChangedDuringCopy) {
+    if (!sourceChanges.isEmpty())
+      completionNote +=
+          QStringLiteral(" · %1 live file%2 changed")
+              .arg(sourceChanges.size())
+              .arg(sourceChanges.size() == 1 ? QString() : QStringLiteral("s"));
+  } else if (exitedForChangingSource || !sourceChanges.isEmpty()) {
     completionTitle = QStringLiteral("Home Shadow captured a changing Home");
     completionNote =
         QStringLiteral("a few transient files vanished during the copy");
