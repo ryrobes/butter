@@ -32,6 +32,144 @@ Window {
         return value.toFixed(digits) + " " + units[unit]
     }
 
+    function compactFindings(items, limit) {
+        var compact = []
+        if (!items) return compact
+        for (var i = 0; i < Math.min(limit, items.length); ++i) {
+            var item = items[i]
+            compact.push({
+                kind: String(item.type || item.title || "finding"),
+                megabytes: roundedMegabytes(item.bytes ||
+                                             item.reclaimableBytes || 0, 100),
+                safety: String(item.safety || "unknown")
+            })
+        }
+        return compact
+    }
+
+    function roundedMegabytes(bytes, bucket) {
+        var value = Math.round(Number(bytes || 0) / 1000000)
+        var size = Math.max(1, Number(bucket || 1))
+        return Math.round(value / size) * size
+    }
+
+    function oneDecimal(value) {
+        return Math.round(Number(value || 0) * 10) / 10
+    }
+
+    function agentBriefing() {
+        var history = filesystem.spaceHistory || []
+        var firstFreeMb = history.length > 0
+                          ? Number(history[0].freeMegabytes) : 0
+        var latestFreeMb = history.length > 0
+                           ? Number(history[history.length - 1].freeMegabytes) : 0
+        var rawChangeMb = history.length > 1
+                          ? latestFreeMb - firstFreeMb : 0
+        var changeMagnitudeMb = history.length > 1
+                                ? Math.round(Math.abs(rawChangeMb) / 100) * 100
+                                : 0
+        var trendDirection = history.length < 2 ? "unknown"
+                             : changeMagnitudeMb === 0 ? "flat"
+                             : rawChangeMb > 0 ? "up" : "down"
+        var focus = []
+        if (filesystem.deviceErrors > 0)
+            focus.push("filesystem device errors")
+        if (filesystem.orphanCount > 0)
+            focus.push("unmanaged recovery copies")
+        if (filesystem.freePercent < 10 || changeMagnitudeMb >= 100)
+            focus.push("free-space level and recent movement")
+        if (!homeShadow.configured)
+            focus.push("Home Shadow has not been set up")
+        else if (homeShadow.state === "running" ||
+                 homeShadow.generationCount === 0)
+            focus.push("first Home Shadow generation")
+        else if (homeShadow.state === "error" || homeShadow.state === "waiting")
+            focus.push("Home Shadow availability")
+        if (filesystem.recoveryCount === 0)
+            focus.push("startup recovery availability")
+        if (homeSpace.buildOutputBytes > 0)
+            focus.push("rebuildable project weight")
+        if (homeSpace.dockerReviewableBytes > 0)
+            focus.push("Docker storage")
+        if (focus.length === 0)
+            focus.push("overall filesystem health")
+
+        return {
+            schema: 1,
+            focus: focus,
+            deterministicStatus: {
+                severity: filesystem.severity,
+                headline: filesystem.verdict,
+                summary: filesystem.verdictDetail
+            },
+            capacity: {
+                totalMegabytes: roundedMegabytes(filesystem.totalBytes, 100),
+                freeMegabytes: roundedMegabytes(filesystem.freeBytes, 100),
+                freePercent: oneDecimal(filesystem.freePercent),
+                dataChunkUsedPercent: oneDecimal(filesystem.dataChunkPercent),
+                observedSamples: history.length,
+                freeSpaceTrend: {
+                    direction: trendDirection,
+                    magnitudeMegabytes: changeMagnitudeMb
+                }
+            },
+            recovery: {
+                deviceErrors: filesystem.deviceErrors,
+                startupPoints: filesystem.recoveryCount,
+                timelineSnapshotsEnabled: filesystem.timelineEnabled,
+                cleanupTimerActive: filesystem.cleanupActive,
+                bootSyncActive: filesystem.bootSyncActive,
+                auditState: filesystem.auditState,
+                auditFindingCount: filesystem.auditFindingCount,
+                orphanCount: filesystem.orphanCount,
+                possibleRecoveryMegabytes:
+                    roundedMegabytes(filesystem.potentialRecoveryBytes, 100)
+            },
+            homeShadow: {
+                configured: homeShadow.configured,
+                state: homeShadow.state,
+                generationCount: homeShadow.generationCount,
+                exclusionCount: homeShadow.exclusionCount,
+                knownExcludedMegabytes:
+                    roundedMegabytes(homeShadow.excludedBytes, 100),
+                lastRun: homeShadow.lastRun,
+                nextRun: homeShadow.nextRun
+            },
+            homeScan: {
+                state: homeSpace.state,
+                scannedMegabytes: roundedMegabytes(homeSpace.scannedBytes, 100),
+                rebuildableMegabytes:
+                    roundedMegabytes(homeSpace.buildOutputBytes, 100),
+                largestRebuildable: compactFindings(homeSpace.buildFindings, 4)
+            },
+            docker: {
+                state: homeSpace.dockerState,
+                reviewableMegabytes:
+                    roundedMegabytes(homeSpace.dockerReviewableBytes, 100),
+                findings: compactFindings(homeSpace.dockerFindings, 4)
+            }
+        }
+    }
+
+    function scheduleAgentNarration() {
+        agentBriefingTimer.restart()
+    }
+
+    Timer {
+        id: agentBriefingTimer
+        interval: 1800
+        repeat: false
+        onTriggered: {
+            if (filesystem.busy) {
+                restart()
+                return
+            }
+            agentNarrator.request(root.agentBriefing())
+        }
+    }
+
+    Component.onCompleted: scheduleAgentNarration()
+
     readonly property color statusColor:
         filesystem.severity === "danger" ? appTheme.urgent
         : filesystem.severity === "warning"
@@ -174,7 +312,11 @@ Window {
                                 spacing: 0
 
                                 Text {
-                                    text: "RIGHT NOW"
+                                    text: agentNarrator.ready
+                                          ? "RIGHT NOW  ·  " + agentNarrator.agentName.toUpperCase() + " SYNOPSIS"
+                                          : agentNarrator.state === "thinking"
+                                            ? "RIGHT NOW  ·  ASKING " + agentNarrator.agentName.toUpperCase()
+                                            : "RIGHT NOW"
                                     color: root.statusColor
                                     font.family: appTheme.monoFont
                                     font.pixelSize: 10
@@ -185,7 +327,9 @@ Window {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: filesystem.verdict
+                                    text: agentNarrator.ready
+                                          ? agentNarrator.headline
+                                          : filesystem.verdict
                                     color: appTheme.brightForeground
                                     font.family: appTheme.sansFont
                                     font.pixelSize: 34
@@ -198,7 +342,9 @@ Window {
                                 Text {
                                     Layout.fillWidth: true
                                     Layout.maximumWidth: 620
-                                    text: filesystem.verdictDetail
+                                    text: agentNarrator.ready
+                                          ? agentNarrator.summary
+                                          : filesystem.verdictDetail
                                     color: appTheme.blend(appTheme.foreground, appTheme.muted, 0.20)
                                     font.family: appTheme.sansFont
                                     font.pixelSize: 15
@@ -1398,6 +1544,11 @@ Window {
     }
 
     Connections {
+        target: filesystem
+        function onStateChanged() { root.scheduleAgentNarration() }
+    }
+
+    Connections {
         target: homeSpace
         function onStateChanged() {
             if (homeSpace.state === "scanning") {
@@ -1409,7 +1560,13 @@ Window {
                 homeShadow.updateExclusions(homeSpace.shadowFindings)
                 root.shadowFiltersCaptured = true
             }
+            root.scheduleAgentNarration()
         }
+    }
+
+    Connections {
+        target: homeShadow
+        function onChanged() { root.scheduleAgentNarration() }
     }
 
     FolderDialog {

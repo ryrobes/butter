@@ -1,4 +1,5 @@
 #include "BtrfsBackend.h"
+#include "AgentNarrator.h"
 #include "HomeScanner.h"
 #include "HomeShadow.h"
 #include "RecoveryAudit.h"
@@ -36,6 +37,7 @@ private slots:
   void buildsShadowExclusions();
   void usesProcessIndependentShadowStatusPath();
   void recordsBoundedSpaceHistory();
+  void validatesAgentNarration();
   void preservesShadowGenerations();
   void validatesShadowDestinations();
 };
@@ -297,6 +299,43 @@ void BtrfsBackendTest::recordsBoundedSpaceHistory() {
   QCOMPARE(samples.size(), 2);
   QCOMPARE(samples.last().toMap().value(QStringLiteral("freeRatio")).toDouble(),
            0.3);
+}
+
+void BtrfsBackendTest::validatesAgentNarration() {
+  const auto valid = AgentNarrator::parseResponse(QByteArrayLiteral(
+      R"({"headline":"Your first Shadow is underway","summary":"The filesystem is healthy, and Butter is making its first protected Home copy now.","trendDirection":"down"})"));
+  QVERIFY(valid.has_value());
+  QCOMPARE(valid->headline, QStringLiteral("Your first Shadow is underway"));
+  QCOMPARE(valid->summary,
+           QStringLiteral("The filesystem is healthy, and Butter is making "
+                          "its first protected Home copy now."));
+  QCOMPARE(valid->trendDirection, QStringLiteral("down"));
+  QVERIFY(!AgentNarrator::contradictsTrend(*valid, QStringLiteral("down")));
+
+  const AgentNarrator::Response contradiction{
+      QStringLiteral("Free space is trending upward"),
+      QStringLiteral("The available space increased by 15 GB."),
+      QStringLiteral("down")};
+  QVERIFY(
+      AgentNarrator::contradictsTrend(contradiction, QStringLiteral("down")));
+
+  const auto simplified = AgentNarrator::parseResponse(QByteArrayLiteral(
+      "model output: {\"headline\":\"Space is moving\",\"summary\":\"Free "
+      "space changed across\\nrecent observations, but no device errors were "
+      "reported.\",\"trendDirection\":\"up\"}"));
+  QVERIFY(simplified.has_value());
+  QVERIFY(!simplified->summary.contains(QLatin1Char('\n')));
+
+  QVERIFY(
+      !AgentNarrator::parseResponse(
+           QByteArrayLiteral(
+               R"({"headline":"Okay","summary":"short","trendDirection":"flat"})"))
+           .has_value());
+  QVERIFY(
+      !AgentNarrator::parseResponse(
+           QByteArrayLiteral(
+               R"({"headline":"Space changed","summary":"Free space moved recently without device errors.","trendDirection":"sideways"})"))
+           .has_value());
 }
 
 void BtrfsBackendTest::preservesShadowGenerations() {

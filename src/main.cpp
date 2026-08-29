@@ -1,3 +1,4 @@
+#include "AgentNarrator.h"
 #include "BtrfsBackend.h"
 #include "HomeScanner.h"
 #include "HomeShadow.h"
@@ -44,6 +45,7 @@ int main(int argc, char *argv[]) {
   BtrfsBackend filesystem;
   HomeScanner homeSpace;
   HomeShadow homeShadow;
+  AgentNarrator agentNarrator;
 
   QQmlApplicationEngine engine;
   engine.rootContext()->setContextProperty(QStringLiteral("appTheme"), &theme);
@@ -53,6 +55,8 @@ int main(int argc, char *argv[]) {
                                            &homeSpace);
   engine.rootContext()->setContextProperty(QStringLiteral("homeShadow"),
                                            &homeShadow);
+  engine.rootContext()->setContextProperty(QStringLiteral("agentNarrator"),
+                                           &agentNarrator);
   engine.loadFromModule(QStringLiteral("Butter"), QStringLiteral("Main"));
   if (engine.rootObjects().isEmpty())
     return 1;

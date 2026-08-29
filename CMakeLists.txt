@@ -14,6 +14,7 @@ qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(butter
     src/main.cpp
+    src/AgentNarrator.cpp
     src/FilesystemBackend.cpp
     src/BtrfsBackend.cpp
     src/HomeScanner.cpp
@@ -83,6 +84,7 @@ include(CTest)
 if(BUILD_TESTING)
     qt_add_executable(butter_backend_test
         tests/BtrfsBackendTest.cpp
+        src/AgentNarrator.cpp
         src/FilesystemBackend.cpp
         src/BtrfsBackend.cpp
         src/HomeScanner.cpp

@@ -44,6 +44,18 @@ process and once when Home Shadow is invoked, coalesces observations within 15
 minutes, and retains up to 800 points from roughly the last year. The ledger
 contains timestamps and capacity numbers only—no filenames or directory data.
 
+When an Omarchy default agent is configured and its supported headless interface
+is available, Butter can ask it for the two lines of prose in **Right now**.
+Butter sends a compact, path-free JSON briefing with rounded capacity,
+recovery, Home Shadow, project-output, and Docker facts. The deterministic
+severity, measurements, chips, and actions remain authoritative and render
+immediately. Agent output is schema-constrained, length-limited, cached by the
+fact set, and never interpreted as a command. A timeout, malformed response,
+missing login, unsupported agent, or unavailable network silently leaves the
+deterministic synopsis in place. This first adapter supports Codex when it is
+the selected Omarchy default; other default agents currently take the fallback
+path.
+
 Known regenerable project artifacts can be removed only from their evidence
 modal. Butter re-detects the artifact at the exact reviewed path inside Home,
 refuses review-only types such as Python environments, invokes no shell or
