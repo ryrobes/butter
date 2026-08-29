@@ -77,13 +77,7 @@ Window {
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 1
-                    Text {
-                        text: "Butter"
-                        color: appTheme.brightForeground
-                        font.family: appTheme.sansFont
-                        font.pixelSize: 19
-                        font.weight: Font.DemiBold
-                    }
+                    ButterWordmark {}
                     Text {
                         text: "Your filesystem, explained."
                         color: appTheme.muted

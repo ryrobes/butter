@@ -31,6 +31,7 @@ qt_add_qml_module(butter
     QML_FILES
         qml/Main.qml
         qml/ButterMark.qml
+        qml/ButterWordmark.qml
         qml/ChromeButton.qml
         qml/RecoveryRail.qml
         qml/SpaceArc.qml
@@ -38,6 +39,7 @@ qt_add_qml_module(butter
         qml/Treemap.qml
     RESOURCES
         assets/butter.svg
+        assets/butter-wordmark.svg
 )
 
 target_link_libraries(butter PRIVATE
