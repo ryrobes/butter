@@ -102,9 +102,20 @@ QString backingDevice(const QString &mountSource) {
 }
 
 QStringList baselineExcludes() {
-  return {QStringLiteral(".cache"), QStringLiteral(".local/share/Trash/files"),
-          QStringLiteral(".npm/_cacache"), QStringLiteral(".cargo/registry"),
-          QStringLiteral(".cargo/git")};
+  return {QStringLiteral(".cache"),
+          QStringLiteral(".local/share/Trash/files"),
+          QStringLiteral(".npm/_cacache"),
+          QStringLiteral(".npm/_npx"),
+          QStringLiteral(".cargo/registry"),
+          QStringLiteral(".cargo/git"),
+          QStringLiteral(".local/share/pnpm/store"),
+          QStringLiteral("go/pkg/mod/cache"),
+          QStringLiteral("**/__pycache__"),
+          QStringLiteral("**/.pytest_cache"),
+          QStringLiteral("**/.mypy_cache"),
+          QStringLiteral("**/.ruff_cache"),
+          QStringLiteral("**/.parcel-cache"),
+          QStringLiteral("**/.vite")};
 }
 
 QStringList excludesFromFindings(const QVariantList &findings,

@@ -64,23 +64,31 @@ Every successful run is assembled in a fresh incomplete directory and promoted
 to a timestamped generation only after rsync completes. Later generations use
 hard links for unchanged files. Source deletions are therefore absent from the
 new generation but remain available in every earlier generation that contained
-them. Butter never passes rsync `--delete`, never modifies a completed
-generation, and never prunes one automatically. If Home changes during a long
-copy or the destination fills, the last successful generation remains current
-and the app reports what happened. A failed first copy remains in the
-incomplete area; **Try again** resumes that same tree and promotes it only after
-a clean run. Butter keeps a bounded rsync error summary so a partial transfer
-does not silently fall back to “ready.”
+them. Butter never applies ordinary source deletion to a resumed tree, never
+modifies a completed generation, and never prunes one automatically. If Home
+changes during a long copy or the destination fills, the last successful
+generation remains current and the app reports what happened. A failed first
+copy remains in the incomplete area; **Try again** resumes that same tree and
+removes newly excluded cache paths from the unfinished copy before promoting
+it after a clean run. Ordinary files that vanished from Home stay in that
+unfinished copy. Butter keeps a bounded rsync error summary so a partial
+transfer does not silently fall back to “ready.”
 
 Source folders or files that explicitly return “permission denied” are recorded
 as skipped and do not prevent promotion when they are the only rsync errors.
 Receiver-side, destination, I/O, and metadata failures still stop promotion.
 
-The initial exclusions combine a conservative cache baseline with exact
-regenerable artifact paths found by the Home scan. Completed scans refresh that
-filter list for future runs. Python environments remain review-only. The
-destination is not encrypted by Butter; its privacy follows the selected
-drive.
+The initial exclusions combine recursive, universally disposable caches with
+exact regenerable artifact paths found by the Home scan, including small
+manifest-backed dependency and build trees. Cargo `target-*` directories count
+only beside a Cargo manifest. Python environments are omitted from the Shadow
+only when a nearby dependency manifest proves they can be recreated; they stay
+review-only in Butter's cleanup UI. Ambiguous `dist`, `out`, generic build
+folders, and unmanifested environments remain included. Completed scans refresh
+the filter list for future runs. Recreating a cleared Shadow on the same
+identified drive retains the previous reviewed filters, so a reset does not
+silently restore hundreds of gigabytes of known build weight. The destination
+is not encrypted by Butter; its privacy follows the selected drive.
 
 The deeper recovery check runs `butter-probe` once through Polkit. The helper
 accepts no filesystem paths or arbitrary commands, performs a fixed read-only

@@ -22,6 +22,8 @@ class HomeScanner : public QObject {
   Q_PROPERTY(QVariantList entries READ entries NOTIFY stateChanged)
   Q_PROPERTY(QVariantList buildFindings READ buildFindings NOTIFY stateChanged)
   Q_PROPERTY(
+      QVariantList shadowFindings READ shadowFindings NOTIFY stateChanged)
+  Q_PROPERTY(
       qulonglong buildOutputBytes READ buildOutputBytes NOTIFY stateChanged)
   Q_PROPERTY(qulonglong scannedBytes READ scannedBytes NOTIFY stateChanged)
   Q_PROPERTY(qulonglong scannedFiles READ scannedFiles NOTIFY stateChanged)
@@ -51,6 +53,7 @@ public:
   bool canGoUp() const { return m_focusPath != m_rootPath; }
   QVariantList entries() const { return m_entries; }
   QVariantList buildFindings() const { return m_buildFindings; }
+  QVariantList shadowFindings() const { return m_shadowFindings; }
   qulonglong buildOutputBytes() const { return m_buildOutputBytes; }
   qulonglong scannedBytes() const { return m_scannedBytes; }
   qulonglong scannedFiles() const { return m_scannedFiles; }
@@ -138,6 +141,7 @@ private:
   QString m_focusPath;
   QVariantList m_entries;
   QVariantList m_buildFindings;
+  QVariantList m_shadowFindings;
   qulonglong m_buildOutputBytes = 0;
   qulonglong m_scannedBytes = 0;
   qulonglong m_scannedFiles = 0;

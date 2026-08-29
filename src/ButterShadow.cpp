@@ -2,10 +2,12 @@
 #include "SpaceHistory.h"
 
 #include <algorithm>
+#include <utility>
 
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -108,6 +110,58 @@ bool isUnreadableSourcePath(const QString &error) {
          error.endsWith(QLatin1String("Permission denied (13)")) &&
          (error.contains(QLatin1String(" opendir ")) ||
           error.contains(QLatin1String(" send_files failed to open ")));
+}
+
+bool removeIncompleteEntry(const QString &path) {
+  const QFileInfo info(path);
+  if (!info.exists() && !info.isSymLink())
+    return true;
+  if (info.isSymLink() || info.isFile())
+    return QFile::remove(path);
+  return info.isDir() && QDir(path).removeRecursively();
+}
+
+QStringList purgeExcludedFromIncomplete(const QString &stagingPath,
+                                        const QStringList &excludes) {
+  QStringList recursiveNames;
+  QStringList exactPaths;
+  for (const QString &exclude : excludes) {
+    const QString clean = QDir::cleanPath(exclude);
+    if (clean.isEmpty() || clean == QLatin1String(".") ||
+        clean.startsWith(QLatin1String("../")) ||
+        clean.startsWith(QLatin1Char('/')))
+      continue;
+    if (clean.startsWith(QLatin1String("**/"))) {
+      const QString name = clean.mid(3);
+      if (!name.isEmpty() && !name.contains(QLatin1Char('/')) &&
+          !name.contains(QLatin1Char('*')) && !name.contains(QLatin1Char('?')))
+        recursiveNames.push_back(name);
+      continue;
+    }
+    if (!clean.contains(QLatin1Char('*')) && !clean.contains(QLatin1Char('?')))
+      exactPaths.push_back(QDir(stagingPath).filePath(clean));
+  }
+
+  QDirIterator iterator(stagingPath,
+                        QDir::AllEntries | QDir::Hidden | QDir::System |
+                            QDir::NoDotAndDotDot,
+                        QDirIterator::Subdirectories);
+  while (iterator.hasNext()) {
+    iterator.next();
+    if (recursiveNames.contains(iterator.fileInfo().fileName()))
+      exactPaths.push_back(iterator.filePath());
+  }
+  std::sort(
+      exactPaths.begin(), exactPaths.end(),
+      [](const QString &a, const QString &b) { return a.size() > b.size(); });
+  exactPaths.removeDuplicates();
+
+  QStringList failures;
+  for (const QString &path : std::as_const(exactPaths)) {
+    if (!removeIncompleteEntry(path))
+      failures.push_back(path);
+  }
+  return failures;
 }
 
 } // namespace
@@ -226,6 +280,20 @@ int main(int argc, char *argv[]) {
        {QStringLiteral("incompletePath"), stagingPath},
        {QStringLiteral("resumed"), resumed}});
 
+  if (resumed) {
+    const QStringList purgeFailures =
+        purgeExcludedFromIncomplete(stagingPath, config.excludes);
+    if (!purgeFailures.isEmpty())
+      return finish(
+          QStringLiteral("error"),
+          QStringLiteral("Home Shadow could not clean its unfinished copy"),
+          QStringLiteral("A newly excluded cache path could not be removed; "
+                         "the incomplete generation was kept."),
+          {{QStringLiteral("startedAt"), startedAt},
+           {QStringLiteral("incompletePath"), stagingPath},
+           {QStringLiteral("resumed"), true}});
+  }
+
   QStringList arguments = {QStringLiteral("--archive"),
                            QStringLiteral("--hard-links"),
                            QStringLiteral("--acls"),
@@ -233,8 +301,7 @@ int main(int argc, char *argv[]) {
                            QStringLiteral("--one-file-system"),
                            QStringLiteral("--modify-window=-1"),
                            QStringLiteral("--partial"),
-                           QStringLiteral("--stats"),
-                           QStringLiteral("--human-readable")};
+                           QStringLiteral("--stats")};
   for (const QString &exclude : config.excludes) {
     QString clean = QDir::cleanPath(exclude);
     if (clean.isEmpty() || clean == QLatin1String(".") ||

@@ -2,6 +2,8 @@
 
 #include "ShadowCommon.h"
 
+#include <algorithm>
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -192,6 +194,21 @@ void HomeShadow::configure(const QUrl &folder, const QVariantList &findings) {
       ShadowCommon::excludesFromFindings(findings, config.sourcePath);
   config.excludedBytes = regenerableBytes(findings);
 
+  ShadowCommon::Config previous;
+  QString previousError;
+  if (ShadowCommon::loadConfig(ShadowCommon::configPath(), &previous,
+                               &previousError) &&
+      previous.sourcePath == config.sourcePath &&
+      previous.destinationPath == config.destinationPath &&
+      previous.mountUuid == config.mountUuid &&
+      previous.machineId == config.machineId) {
+    config.excludes.append(previous.excludes);
+    config.excludes.removeDuplicates();
+    std::sort(config.excludes.begin(), config.excludes.end());
+    if (findings.isEmpty())
+      config.excludedBytes = previous.excludedBytes;
+  }
+
   QString error;
   if (!ShadowCommon::saveJson(
           QDir(shadowRoot).filePath(QStringLiteral("identity.json")),
@@ -328,11 +345,24 @@ void HomeShadow::refresh() {
 
   const ShadowCommon::MountInfo currentMount =
       ShadowCommon::mountInfo(config.destinationPath);
-  const bool connected =
-      currentMount.valid && currentMount.uuid == config.mountUuid &&
-      QFileInfo::exists(
-          QDir(config.destinationPath)
-              .filePath(QStringLiteral(".butter-shadow/identity.json")));
+  const bool recordedDriveMounted =
+      currentMount.valid && currentMount.uuid == config.mountUuid;
+  const bool identityExists = QFileInfo::exists(
+      QDir(config.destinationPath)
+          .filePath(QStringLiteral(".butter-shadow/identity.json")));
+  if (recordedDriveMounted && !identityExists) {
+    m_configured = false;
+    m_state = QStringLiteral("unconfigured");
+    m_title = QStringLiteral("Ready for a fresh Home Shadow");
+    m_detail = QStringLiteral(
+        "The earlier Shadow folder is gone. Review this drive again to start "
+        "a new first copy.");
+    m_generationCount = 0;
+    m_lastRun.clear();
+    emit changed();
+    return;
+  }
+  const bool connected = recordedDriveMounted && identityExists;
   if (!connected) {
     m_state = QStringLiteral("waiting");
     m_title = QStringLiteral("Waiting for the Shadow drive");

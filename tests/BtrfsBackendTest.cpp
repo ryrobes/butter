@@ -242,6 +242,10 @@ void BtrfsBackendTest::buildsShadowExclusions() {
   const QStringList excludes =
       ShadowCommon::excludesFromFindings(findings, source.path());
   QVERIFY(excludes.contains(QStringLiteral(".cache")));
+  QVERIFY(excludes.contains(QStringLiteral("**/__pycache__")));
+  QVERIFY(excludes.contains(QStringLiteral("**/.pytest_cache")));
+  QVERIFY(excludes.contains(QStringLiteral(".local/share/pnpm/store")));
+  QVERIFY(excludes.contains(QStringLiteral("go/pkg/mod/cache")));
   QVERIFY(excludes.contains(QStringLiteral("app/target")));
   QVERIFY(!excludes.contains(QStringLiteral("app/.venv")));
 }
@@ -307,6 +311,8 @@ void BtrfsBackendTest::preservesShadowGenerations() {
   QVERIFY(QDir().mkpath(QDir(shadowRoot).filePath(QStringLiteral("receipts"))));
   QVERIFY(
       QDir().mkpath(QDir(source.path()).filePath(QStringLiteral(".cache"))));
+  QVERIFY(QDir().mkpath(
+      QDir(source.path()).filePath(QStringLiteral("project/__pycache__"))));
 
   const auto writeFile = [](const QString &path, const QByteArray &contents) {
     QFile file(path);
@@ -323,6 +329,9 @@ void BtrfsBackendTest::preservesShadowGenerations() {
   QVERIFY(
       writeFile(QDir(source.path()).filePath(QStringLiteral(".cache/noise")),
                 QByteArrayLiteral("skip")));
+  QVERIFY(writeFile(
+      QDir(source.path()).filePath(QStringLiteral("project/__pycache__/noise")),
+      QByteArrayLiteral("skip recursively")));
 
   const ShadowCommon::MountInfo mount =
       ShadowCommon::mountInfo(destination.path());
@@ -335,7 +344,7 @@ void BtrfsBackendTest::preservesShadowGenerations() {
   config.filesystem = mount.filesystem;
   config.machineId = ShadowCommon::machineId();
   config.createdAt = QStringLiteral("2026-08-29T00:00:00Z");
-  config.excludes = {QStringLiteral(".cache")};
+  config.excludes = ShadowCommon::baselineExcludes();
   const QString configPath =
       QDir(source.path()).filePath(QStringLiteral("config.json"));
   const QString statusPath =
@@ -390,6 +399,17 @@ void BtrfsBackendTest::preservesShadowGenerations() {
   QVERIFY(QFileInfo::exists(QDir(first).filePath(QStringLiteral("kept.txt"))));
   QVERIFY(
       !QFileInfo::exists(QDir(first).filePath(QStringLiteral(".cache/noise"))));
+  QVERIFY(!QFileInfo::exists(
+      QDir(first).filePath(QStringLiteral("project/__pycache__/noise"))));
+  QFile firstReceipt(QDir(shadowRoot)
+                         .filePath(QStringLiteral("receipts/") +
+                                   generations.first() +
+                                   QStringLiteral(".json")));
+  QVERIFY(firstReceipt.open(QIODevice::ReadOnly));
+  const QJsonObject firstReceiptJson =
+      QJsonDocument::fromJson(firstReceipt.readAll()).object();
+  QVERIFY(firstReceiptJson.value(QStringLiteral("sourceBytes")).toInteger() >
+          100);
 
   QVERIFY(
       QFile::remove(QDir(source.path()).filePath(QStringLiteral("kept.txt"))));
@@ -439,7 +459,19 @@ void BtrfsBackendTest::preservesShadowGenerations() {
 
   const QString incompletePath =
       QDir(shadowRoot).filePath(QStringLiteral("incomplete/manual-resume"));
-  QVERIFY(QDir().mkpath(incompletePath));
+  QVERIFY(
+      QDir().mkpath(QDir(incompletePath).filePath(QStringLiteral(".cache"))));
+  QVERIFY(QDir().mkpath(
+      QDir(incompletePath).filePath(QStringLiteral("work/.pytest_cache"))));
+  QVERIFY(
+      writeFile(QDir(incompletePath).filePath(QStringLiteral(".cache/stale")),
+                QByteArrayLiteral("excluded")));
+  QVERIFY(writeFile(
+      QDir(incompletePath).filePath(QStringLiteral("ordinary-stale.txt")),
+      QByteArrayLiteral("preserve")));
+  QVERIFY(writeFile(
+      QDir(incompletePath).filePath(QStringLiteral("work/.pytest_cache/stale")),
+      QByteArrayLiteral("excluded recursively")));
   QVERIFY(ShadowCommon::saveStatus(
       statusPath, QStringLiteral("error"), QStringLiteral("test failure"),
       QStringLiteral("test failure"),
@@ -463,6 +495,13 @@ void BtrfsBackendTest::preservesShadowGenerations() {
           .filePath(QStringLiteral("generations/") +
                     QFileInfo(incompletePath).fileName());
   QVERIFY(QFileInfo(resumedGeneration).isDir());
+  QVERIFY(!QFileInfo::exists(
+      QDir(resumedGeneration).filePath(QStringLiteral(".cache/stale"))));
+  QVERIFY(!QFileInfo::exists(
+      QDir(resumedGeneration)
+          .filePath(QStringLiteral("work/.pytest_cache/stale"))));
+  QVERIFY(QFileInfo::exists(
+      QDir(resumedGeneration).filePath(QStringLiteral("ordinary-stale.txt"))));
   QFile completedStatus(statusPath);
   QVERIFY(completedStatus.open(QIODevice::ReadOnly));
   const QJsonObject completion =

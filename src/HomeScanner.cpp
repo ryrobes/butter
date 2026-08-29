@@ -46,6 +46,19 @@ bool isInside(const QString &path, const QString &parent) {
   return path == parent || path.startsWith(parent + QLatin1Char('/'));
 }
 
+bool hasPythonDependencyManifest(const QString &projectPath) {
+  static const QStringList manifests = {
+      QStringLiteral("pyproject.toml"),   QStringLiteral("uv.lock"),
+      QStringLiteral("poetry.lock"),      QStringLiteral("Pipfile"),
+      QStringLiteral("requirements.txt"), QStringLiteral("environment.yml"),
+      QStringLiteral("environment.yaml"), QStringLiteral("setup.py")};
+  const QDir project(projectPath);
+  return std::any_of(manifests.cbegin(), manifests.cend(),
+                     [&project](const QString &manifest) {
+                       return QFileInfo::exists(project.filePath(manifest));
+                     });
+}
+
 } // namespace
 
 HomeScanner::HomeScanner(QObject *parent)
@@ -79,6 +92,7 @@ void HomeScanner::startScan() {
   m_focusPath = m_rootPath;
   m_entries.clear();
   m_buildFindings.clear();
+  m_shadowFindings.clear();
   m_buildOutputBytes = 0;
   m_cleanupState = QStringLiteral("idle");
   m_cleanupTitle.clear();
@@ -173,7 +187,8 @@ HomeScanner::artifactForDirectory(const QString &path, const QString &rootPath,
         QStringLiteral("node"), QStringLiteral("Node dependencies"),
         QStringLiteral("Can be restored from the project's package manifest."));
 
-  if (name == QLatin1String("target") &&
+  if ((name == QLatin1String("target") ||
+       name.startsWith(QLatin1String("target-"))) &&
       QFileInfo::exists(QDir(parent).filePath(QStringLiteral("Cargo.toml"))))
     return make(QStringLiteral("rust"), QStringLiteral("Rust build output"),
                 QStringLiteral(
@@ -197,10 +212,18 @@ HomeScanner::artifactForDirectory(const QString &path, const QString &rootPath,
             "The project can regenerate it; the next build will be slower."));
 
   if ((name == QLatin1String(".venv") || name == QLatin1String("venv")) &&
-      QFileInfo::exists(QDir(path).filePath(QStringLiteral("pyvenv.cfg"))))
-    return make(QStringLiteral("python"), QStringLiteral("Python environment"),
-                QStringLiteral("Usually reproducible from project dependency "
-                               "files, but review first."));
+      QFileInfo::exists(QDir(path).filePath(QStringLiteral("pyvenv.cfg")))) {
+    const bool manifested = hasPythonDependencyManifest(parent);
+    return make(
+        manifested ? QStringLiteral("python-manifest")
+                   : QStringLiteral("python"),
+        QStringLiteral("Python environment"),
+        manifested
+            ? QStringLiteral("The Shadow copy can omit it because the project "
+                             "records how to recreate its dependencies.")
+            : QStringLiteral("Usually reproducible, but no nearby dependency "
+                             "manifest proved that; review first."));
+  }
 
   const QString relative = QDir(rootPath).relativeFilePath(path);
   if (relative == QLatin1String(".cargo/registry") ||
@@ -405,11 +428,10 @@ void HomeScanner::applyFinished(const std::shared_ptr<ScanResult> &result) {
           : QStringLiteral("Home scan complete. No system folders were read.");
 
   m_buildFindings.clear();
+  m_shadowFindings.clear();
   m_buildOutputBytes = 0;
   QVector<QVariantMap> findings;
   for (const Artifact &artifact : result->artifacts) {
-    if (artifact.bytes < 100'000'000)
-      continue;
     QVariantMap finding;
     finding.insert(QStringLiteral("path"), artifact.path);
     finding.insert(QStringLiteral("projectPath"), artifact.projectPath);
@@ -418,12 +440,23 @@ void HomeScanner::applyFinished(const std::shared_ptr<ScanResult> &result) {
     finding.insert(QStringLiteral("bytes"), artifact.bytes);
     finding.insert(QStringLiteral("fileCount"), artifact.fileCount);
     finding.insert(QStringLiteral("consequence"), artifact.consequence);
-    finding.insert(QStringLiteral("safety"),
-                   artifact.type == QLatin1String("python")
-                       ? QStringLiteral("review")
-                       : QStringLiteral("regenerable"));
-    findings.push_back(finding);
-    m_buildOutputBytes += artifact.bytes;
+    const bool pythonEnvironment =
+        artifact.type == QLatin1String("python") ||
+        artifact.type == QLatin1String("python-manifest");
+    const bool shadowSafe = artifact.type != QLatin1String("python");
+    if (shadowSafe) {
+      QVariantMap shadowFinding = finding;
+      shadowFinding.insert(QStringLiteral("safety"),
+                           QStringLiteral("regenerable"));
+      m_shadowFindings.push_back(shadowFinding);
+    }
+    if (artifact.bytes >= 100'000'000) {
+      finding.insert(QStringLiteral("safety"),
+                     pythonEnvironment ? QStringLiteral("review")
+                                       : QStringLiteral("regenerable"));
+      findings.push_back(finding);
+      m_buildOutputBytes += artifact.bytes;
+    }
   }
   std::sort(findings.begin(), findings.end(),
             [](const QVariantMap &a, const QVariantMap &b) {

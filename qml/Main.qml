@@ -801,9 +801,10 @@ Window {
                                     }
                                     Text {
                                         Layout.fillWidth: true
-                                        text: homeShadow.exclusionCount + " excluded paths" +
+                                        text: homeShadow.exclusionCount + " filters" +
                                               (homeShadow.excludedBytes > 0
-                                               ? "  ·  " + root.formatBytes(homeShadow.excludedBytes)
+                                               ? "  ·  " + root.formatBytes(homeShadow.excludedBytes) +
+                                                 " known output omitted"
                                                : "")
                                         color: appTheme.muted
                                         font.family: appTheme.monoFont
@@ -1405,7 +1406,7 @@ Window {
                        !root.shadowFiltersCaptured &&
                        (homeSpace.state === "complete" ||
                         homeSpace.state === "cancelled")) {
-                homeShadow.updateExclusions(homeSpace.buildFindings)
+                homeShadow.updateExclusions(homeSpace.shadowFindings)
                 root.shadowFiltersCaptured = true
             }
         }
@@ -1503,8 +1504,7 @@ Window {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: "The first copy starts now. Later copies hard-link unchanged files. Butter currently knows " +
-                          homeSpace.buildFindings.length + " rebuildable/cache locations to consider, plus its safe baseline exclusions."
+                    text: "The first copy starts now. Later copies hard-link unchanged files. Butter omits recursive caches and manifest-backed build locations from the current scan. A cleared Shadow on this same reviewed drive also keeps its previous safe filters."
                     color: appTheme.muted
                     font.family: appTheme.sansFont
                     font.pixelSize: 11
@@ -1546,7 +1546,7 @@ Window {
                     onTriggered: {
                         shadowSetupDialog.close()
                         homeShadow.configure(shadowFolderDialog.selectedFolder,
-                                             homeSpace.buildFindings)
+                                             homeSpace.shadowFindings)
                     }
                 }
             }
