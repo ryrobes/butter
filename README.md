@@ -86,3 +86,7 @@ an Omarchy agent instead.
 
 The backend has a provider boundary so future ZFS support can keep its native
 topology and vocabulary rather than being squeezed into Btrfs concepts.
+
+## License
+
+Butter is available under the [MIT License](LICENSE).

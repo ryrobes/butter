@@ -102,8 +102,8 @@ Window {
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: readonlyLabel.implicitWidth + 20
-                    height: 28
-                    radius: 14
+                    height: 30
+                    radius: 15
                     color: appTheme.alpha(appTheme.accent, 0.10)
                     border.width: 1
                     border.color: appTheme.alpha(appTheme.accent, 0.28)
@@ -339,7 +339,7 @@ Window {
                                        : filesystem.auditState === "cancelled" ||
                                          filesystem.auditState === "error" ? "Try again"
                                        : "Verify copies"
-                                glyph: filesystem.auditState === "running" ? "·" : "⌁"
+                                glyph: filesystem.auditState === "running" ? "·" : "✓"
                                 onTriggered: filesystem.verifyRecovery()
                             }
 
@@ -871,8 +871,8 @@ Window {
 
                                 Rectangle {
                                     implicitWidth: homeOnlyText.implicitWidth + 18
-                                    implicitHeight: 26
-                                    radius: 13
+                                    implicitHeight: 30
+                                    radius: 15
                                     color: appTheme.alpha(appTheme.accent, 0.08)
                                     border.width: 1
                                     border.color: appTheme.alpha(appTheme.accent, 0.20)
@@ -890,7 +890,7 @@ Window {
                                 ChromeButton {
                                     visible: homeSpace.state !== "scanning"
                                     label: homeSpace.state === "idle" ? "Scan home" : "Scan again"
-                                    glyph: homeSpace.state === "idle" ? "⌁" : "↻"
+                                    glyph: homeSpace.state === "idle" ? "→" : "↻"
                                     onTriggered: homeSpace.startScan()
                                 }
                                 ChromeButton {

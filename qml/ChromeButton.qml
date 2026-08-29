@@ -7,8 +7,8 @@ FocusScope {
     property bool quiet: false
     signal triggered()
 
-    implicitHeight: 36
-    implicitWidth: content.implicitWidth + 24
+    implicitHeight: 30
+    implicitWidth: content.width + 22
     activeFocusOnTab: true
     opacity: enabled ? 1 : 0.45
 
@@ -26,24 +26,45 @@ FocusScope {
                                      hover.hovered || root.activeFocus ? 0.30 : 0.16)
     }
 
-    Row {
+    Item {
         id: content
         anchors.centerIn: parent
-        spacing: 7
+        width: iconCell.visible
+               ? iconCell.width + 6 + labelText.implicitWidth
+               : labelText.implicitWidth
+        height: Math.max(iconCell.visible ? iconCell.height : 0,
+                         labelText.implicitHeight)
+
+        Item {
+            id: iconCell
+            visible: root.glyph.length > 0
+            width: 15
+            height: 16
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+
+            Text {
+                anchors.fill: parent
+                text: root.glyph
+                color: appTheme.foreground
+                font.family: appTheme.sansFont
+                font.pixelSize: 14
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
 
         Text {
-            visible: root.glyph.length > 0
-            text: root.glyph
-            color: appTheme.foreground
-            font.family: appTheme.sansFont
-            font.pixelSize: 16
-        }
-        Text {
+            id: labelText
+            anchors.left: iconCell.visible ? iconCell.right : parent.left
+            anchors.leftMargin: iconCell.visible ? 6 : 0
+            anchors.verticalCenter: parent.verticalCenter
             text: root.label
             color: appTheme.foreground
             font.family: appTheme.sansFont
             font.pixelSize: 12
             font.weight: Font.Medium
+            wrapMode: Text.NoWrap
         }
     }
 
@@ -63,4 +84,3 @@ FocusScope {
         }
     }
 }
-
