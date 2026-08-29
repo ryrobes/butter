@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Butter
+Comment=Your filesystem, explained
+Exec=butter
+TryExec=butter
+Icon=org.omarchy.butter
+Terminal=false
+Categories=System;
+Keywords=Btrfs;filesystem;storage;backup;snapshot;
+StartupWMClass=org.omarchy.butter

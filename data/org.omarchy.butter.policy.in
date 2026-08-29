@@ -4,7 +4,7 @@
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
   <vendor>Butter</vendor>
-  <vendor_url>https://github.com/omarchy</vendor_url>
+  <vendor_url>https://github.com/ryrobes/butter</vendor_url>
   <action id="org.omarchy.butter.verify-recovery">
     <description>Verify filesystem recovery copies</description>
     <message>Authentication is required to inspect protected Btrfs recovery copies</message>

@@ -4,6 +4,10 @@ project(Butter VERSION 0.0.1 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
+set(BUTTER_POLKIT_ACTION_DIR
+    "${CMAKE_INSTALL_DATADIR}/polkit-1/actions"
+    CACHE PATH "Install directory for Butter's Polkit actions")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -109,5 +113,10 @@ configure_file(
 
 install(TARGETS butter butter-shadow butter-probe butter-remedy
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES data/org.omarchy.butter.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES assets/butter.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+        RENAME org.omarchy.butter.svg)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/org.omarchy.butter.policy
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/polkit-1/actions)
+        DESTINATION ${BUTTER_POLKIT_ACTION_DIR})

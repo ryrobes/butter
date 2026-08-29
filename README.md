@@ -5,7 +5,35 @@ Snapper, Limine, home-folder use, and Docker storage into a small set of
 plain-language answers. Observation is read-only; recovery remedies and a
 user-confirmed Home Shadow are explicit, narrowly bounded exceptions.
 
-## Build and run
+## Install on Omarchy or Arch
+
+Until the AUR package is available, install the current public release from
+source:
+
+```bash
+sudo pacman -S --needed base-devel cmake ninja qt6-base qt6-declarative rsync btrfs-progs polkit
+git clone https://github.com/ryrobes/butter.git
+cd butter
+./install.sh
+```
+
+The script builds as your normal user, then asks once for administrator access
+to install the app and its narrowly scoped recovery helpers under `/usr/local`.
+It also installs Butter's app-launcher entry, scalable icon, and Polkit actions.
+Open **Butter** from the Omarchy launcher or run `butter` in a terminal.
+
+To update later:
+
+```bash
+cd butter
+git pull --ff-only
+./install.sh
+```
+
+The installer does not alter Butter's Home Shadow configuration, completed
+generations, scan history, or free-space history.
+
+## Build without installing
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
