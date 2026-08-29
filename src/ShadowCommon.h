@@ -30,6 +30,7 @@ struct Config {
 
 QString configPath();
 QString statusPath();
+QString legacyStatusPath();
 QString unitName();
 QString timerName();
 QString machineId();

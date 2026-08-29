@@ -60,7 +60,10 @@ new generation but remain available in every earlier generation that contained
 them. Butter never passes rsync `--delete`, never modifies a completed
 generation, and never prunes one automatically. If Home changes during a long
 copy or the destination fills, the last successful generation remains current
-and the app reports what happened.
+and the app reports what happened. A failed first copy remains in the
+incomplete area; **Try again** resumes that same tree and promotes it only after
+a clean run. Butter keeps a bounded rsync error summary so a partial transfer
+does not silently fall back to “ready.”
 
 The initial exclusions combine a conservative cache baseline with exact
 regenerable artifact paths found by the Home scan. Completed scans refresh that

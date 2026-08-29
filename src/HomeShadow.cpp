@@ -351,20 +351,32 @@ void HomeShadow::refresh() {
     return;
   }
 
-  QFile statusFile(ShadowCommon::statusPath());
-  if (statusFile.open(QIODevice::ReadOnly)) {
+  const QString currentStatusPath = ShadowCommon::statusPath();
+  QFile statusFile(currentStatusPath);
+  bool legacyStatus = false;
+  if (!statusFile.open(QIODevice::ReadOnly)) {
+    statusFile.setFileName(ShadowCommon::legacyStatusPath());
+    legacyStatus = statusFile.open(QIODevice::ReadOnly);
+  }
+  if (statusFile.isOpen()) {
     const QJsonObject status =
         QJsonDocument::fromJson(statusFile.readAll()).object();
+    if (legacyStatus)
+      ShadowCommon::saveJson(currentStatusPath, status, nullptr);
     m_state = status.value(QStringLiteral("state")).toString();
     m_title = status.value(QStringLiteral("title")).toString();
     m_detail = status.value(QStringLiteral("detail")).toString();
     m_lastRun =
         friendlyTime(status.value(QStringLiteral("finishedAt")).toString());
+    const bool controlRunning =
+        m_controlProcess && m_controlProcess->state() != QProcess::NotRunning;
+    m_busy = controlRunning || m_state == QLatin1String("running");
   } else {
     m_state = QStringLiteral("ready");
     m_title = QStringLiteral("Ready for its first copy");
     m_detail = QStringLiteral(
         "Daily when connected · completed generations are never pruned.");
+    m_busy = false;
   }
   emit changed();
 }

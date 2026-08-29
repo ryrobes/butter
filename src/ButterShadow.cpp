@@ -5,6 +5,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QLockFile>
 #include <QProcess>
@@ -44,6 +46,51 @@ qulonglong statValue(const QByteArray &output, const QString &label) {
   QString number = match.captured(1);
   number.remove(QLatin1Char(','));
   return number.toULongLong();
+}
+
+QJsonObject readStatus(const QString &path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly))
+    return {};
+  const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+  return document.isObject() ? document.object() : QJsonObject{};
+}
+
+QString resumablePath(const QString &statusFile,
+                      const QString &incompleteRoot) {
+  QJsonObject status = readStatus(statusFile);
+  if (status.isEmpty() && statusFile == ShadowCommon::statusPath())
+    status = readStatus(ShadowCommon::legacyStatusPath());
+  if (status.value(QStringLiteral("state")).toString() !=
+      QLatin1String("error"))
+    return {};
+
+  const QString candidate = ShadowCommon::normalized(
+      status.value(QStringLiteral("incompletePath")).toString());
+  const QString root = ShadowCommon::normalized(incompleteRoot);
+  const QFileInfo info(candidate);
+  if (candidate.isEmpty() || candidate == root ||
+      !ShadowCommon::isInside(candidate, root) || !info.isDir() ||
+      info.isSymLink())
+    return {};
+  return candidate;
+}
+
+QStringList boundedErrors(const QString &standardError) {
+  QStringList useful;
+  for (QString line :
+       standardError.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+    line = line.trimmed();
+    if (line.isEmpty() || line.startsWith(QLatin1String("rsync error:")))
+      continue;
+    if (line.size() > 320)
+      line = line.left(317) + QStringLiteral("...");
+    if (!useful.contains(line))
+      useful.push_back(line);
+  }
+  if (useful.size() > 6)
+    useful = useful.sliced(useful.size() - 6);
+  return useful;
 }
 
 } // namespace
@@ -122,12 +169,17 @@ int main(int argc, char *argv[]) {
         QStringLiteral("The Shadow drive is not writable"),
         QStringLiteral("Butter could not create its generation folders."));
 
-  const QString stamp = QDateTime::currentDateTimeUtc().toString(
-      QStringLiteral("yyyy-MM-ddTHHmmssZ"));
-  const QString generationName =
-      stamp + QLatin1Char('-') +
-      QString::number(QCoreApplication::applicationPid());
-  const QString stagingPath = QDir(incomplete).filePath(generationName);
+  QString stagingPath = resumablePath(statusPath, incomplete);
+  const bool resumed = !stagingPath.isEmpty();
+  if (!resumed) {
+    const QString stamp = QDateTime::currentDateTimeUtc().toString(
+        QStringLiteral("yyyy-MM-ddTHHmmssZ"));
+    stagingPath =
+        QDir(incomplete)
+            .filePath(stamp + QLatin1Char('-') +
+                      QString::number(QCoreApplication::applicationPid()));
+  }
+  const QString generationName = QFileInfo(stagingPath).fileName();
   const QString generationPath = QDir(generations).filePath(generationName);
   if (!QDir().mkpath(stagingPath))
     return finish(
@@ -139,9 +191,13 @@ int main(int argc, char *argv[]) {
       QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
   ShadowCommon::saveStatus(
       statusPath, QStringLiteral("running"),
-      QStringLiteral("Updating Home Shadow"),
-      QStringLiteral("Building a new immutable generation."),
-      {{QStringLiteral("startedAt"), startedAt}});
+      resumed ? QStringLiteral("Resuming Home Shadow")
+              : QStringLiteral("Updating Home Shadow"),
+      resumed ? QStringLiteral("Completing the preserved incomplete copy.")
+              : QStringLiteral("Building a new immutable generation."),
+      {{QStringLiteral("startedAt"), startedAt},
+       {QStringLiteral("incompletePath"), stagingPath},
+       {QStringLiteral("resumed"), resumed}});
 
   QStringList arguments = {QStringLiteral("--archive"),
                            QStringLiteral("--hard-links"),
@@ -189,15 +245,22 @@ int main(int argc, char *argv[]) {
       process.exitStatus() == QProcess::NormalExit && process.exitCode() == 24;
   if (process.exitStatus() != QProcess::NormalExit ||
       (process.exitCode() != 0 && !sourceChangedDuringCopy)) {
+    const QStringList errorLines = boundedErrors(standardError);
+    QJsonArray errors;
+    for (const QString &line : errorLines)
+      errors.push_back(line);
     return finish(
         QStringLiteral("error"),
         QStringLiteral("Home Shadow stopped before completion"),
-        standardError.isEmpty()
+        errorLines.isEmpty()
             ? QStringLiteral("The incomplete generation was kept; the last "
                              "successful generation is still current.")
-            : standardError.section(QLatin1Char('\n'), -1),
+            : errorLines.constLast(),
         {{QStringLiteral("startedAt"), startedAt},
-         {QStringLiteral("incompletePath"), stagingPath}});
+         {QStringLiteral("incompletePath"), stagingPath},
+         {QStringLiteral("resumed"), resumed},
+         {QStringLiteral("rsyncExitCode"), process.exitCode()},
+         {QStringLiteral("errorLines"), errors}});
   }
 
   if (!QDir().rename(stagingPath, generationPath))
@@ -240,7 +303,8 @@ int main(int argc, char *argv[]) {
       {QStringLiteral("transferredBytes"),
        static_cast<qint64>(transferredBytes)},
       {QStringLiteral("generationCount"), generationCount},
-      {QStringLiteral("excludedPaths"), config.excludes.size()}};
+      {QStringLiteral("excludedPaths"), config.excludes.size()},
+      {QStringLiteral("resumed"), resumed}};
   ShadowCommon::saveJson(
       QDir(receipts).filePath(generationName + QStringLiteral(".json")),
       receipt, nullptr);

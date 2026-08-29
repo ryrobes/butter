@@ -6,6 +6,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -30,6 +32,7 @@ private slots:
   void classifiesRemovableArtifacts();
   void rejectsUnreviewedArtifactRemoval();
   void buildsShadowExclusions();
+  void usesProcessIndependentShadowStatusPath();
   void preservesShadowGenerations();
   void validatesShadowDestinations();
 };
@@ -240,6 +243,17 @@ void BtrfsBackendTest::buildsShadowExclusions() {
   QVERIFY(!excludes.contains(QStringLiteral("app/.venv")));
 }
 
+void BtrfsBackendTest::usesProcessIndependentShadowStatusPath() {
+  const QString originalName = QCoreApplication::applicationName();
+  QCoreApplication::setApplicationName(QStringLiteral("butter"));
+  const QString appPath = ShadowCommon::statusPath();
+  QCoreApplication::setApplicationName(QStringLiteral("butter-shadow"));
+  const QString helperPath = ShadowCommon::statusPath();
+  QCoreApplication::setApplicationName(originalName);
+  QCOMPARE(appPath, helperPath);
+  QVERIFY(appPath.endsWith(QStringLiteral("/butter/home-shadow-status.json")));
+}
+
 void BtrfsBackendTest::preservesShadowGenerations() {
   if (!QFileInfo::exists(QStringLiteral("/dev/shm")) ||
       QStandardPaths::findExecutable(QStringLiteral("rsync")).isEmpty())
@@ -300,12 +314,12 @@ void BtrfsBackendTest::preservesShadowGenerations() {
 
   const QString helper = QDir(QCoreApplication::applicationDirPath())
                              .filePath(QStringLiteral("butter-shadow"));
-  auto run = [&] {
+  auto run = [&](int expectedExitCode = 0) {
     QProcess process;
     process.start(helper, {QStringLiteral("--run"), QStringLiteral("--config"),
                            configPath, QStringLiteral("--status"), statusPath});
     QVERIFY(process.waitForFinished(30000));
-    QCOMPARE(process.exitCode(), 0);
+    QCOMPARE(process.exitCode(), expectedExitCode);
   };
   run();
   QStringList generations =
@@ -345,6 +359,41 @@ void BtrfsBackendTest::preservesShadowGenerations() {
   QCOMPARE(::stat(firstPath.constData(), &firstUnchanged), 0);
   QCOMPARE(::stat(secondPath.constData(), &secondUnchanged), 0);
   QCOMPARE(firstUnchanged.st_ino, secondUnchanged.st_ino);
+
+  const QString blockedPath =
+      QDir(source.path()).filePath(QStringLiteral("blocked.txt"));
+  QVERIFY(writeFile(blockedPath, QByteArrayLiteral("finish me")));
+  QVERIFY(QFile::setPermissions(blockedPath, {}));
+  run(1);
+
+  QFile failedStatus(statusPath);
+  QVERIFY(failedStatus.open(QIODevice::ReadOnly));
+  const QJsonObject failure =
+      QJsonDocument::fromJson(failedStatus.readAll()).object();
+  QCOMPARE(failure.value(QStringLiteral("state")).toString(),
+           QStringLiteral("error"));
+  QCOMPARE(failure.value(QStringLiteral("rsyncExitCode")).toInt(), 23);
+  QVERIFY(!failure.value(QStringLiteral("errorLines")).toArray().isEmpty());
+  const QString incompletePath =
+      failure.value(QStringLiteral("incompletePath")).toString();
+  QVERIFY(QFileInfo(incompletePath).isDir());
+
+  QVERIFY(QFile::setPermissions(blockedPath, QFileDevice::ReadOwner |
+                                                 QFileDevice::WriteOwner));
+  run();
+  QVERIFY(!QFileInfo::exists(incompletePath));
+  const QString resumedGeneration =
+      QDir(shadowRoot)
+          .filePath(QStringLiteral("generations/") +
+                    QFileInfo(incompletePath).fileName());
+  QVERIFY(QFileInfo(resumedGeneration).isDir());
+  QFile completedStatus(statusPath);
+  QVERIFY(completedStatus.open(QIODevice::ReadOnly));
+  const QJsonObject completion =
+      QJsonDocument::fromJson(completedStatus.readAll()).object();
+  QCOMPARE(completion.value(QStringLiteral("state")).toString(),
+           QStringLiteral("current"));
+  QVERIFY(completion.value(QStringLiteral("resumed")).toBool());
 }
 
 void BtrfsBackendTest::validatesShadowDestinations() {

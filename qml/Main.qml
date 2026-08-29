@@ -724,7 +724,8 @@ Window {
                                 Text {
                                     anchors.centerIn: parent
                                     text: homeShadow.state === "current" ? "✓"
-                                          : homeShadow.state === "running" ? "···" : "◐"
+                                          : homeShadow.state === "running" ? "···"
+                                          : homeShadow.state === "error" ? "!" : "◐"
                                     color: homeShadow.state === "error"
                                            ? appTheme.urgent : appTheme.accent
                                     font.family: appTheme.sansFont
@@ -803,7 +804,9 @@ Window {
                             ChromeButton {
                                 Layout.alignment: Qt.AlignVCenter
                                 label: homeShadow.configured
-                                       ? (homeShadow.busy ? "Copying" : "Run now")
+                                       ? (homeShadow.busy ? "Copying"
+                                          : homeShadow.state === "error"
+                                            ? "Try again" : "Run now")
                                        : "Choose a drive"
                                 glyph: homeShadow.configured
                                        ? (homeShadow.busy ? "·" : "↻") : "＋"

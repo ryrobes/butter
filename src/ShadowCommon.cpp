@@ -20,8 +20,15 @@ QString configPath() {
 }
 
 QString statusPath() {
-  return QDir(QStandardPaths::writableLocation(QStandardPaths::StateLocation))
+  return QDir(QStandardPaths::writableLocation(
+                  QStandardPaths::GenericStateLocation))
       .filePath(QStringLiteral("butter/home-shadow-status.json"));
+}
+
+QString legacyStatusPath() {
+  return QDir(QStandardPaths::writableLocation(
+                  QStandardPaths::GenericStateLocation))
+      .filePath(QStringLiteral("butter-shadow/butter/home-shadow-status.json"));
 }
 
 QString unitName() { return QStringLiteral("butter-home-shadow.service"); }
