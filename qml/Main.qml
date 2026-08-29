@@ -79,10 +79,11 @@ Window {
                     spacing: 1
                     ButterWordmark {}
                     Text {
-                        text: "Your filesystem, explained."
+                        text: "YOUR FILESYSTEM, EXPLAINED."
                         color: appTheme.muted
-                        font.family: appTheme.sansFont
-                        font.pixelSize: 12
+                        font.family: appTheme.monoFont
+                        font.pixelSize: 9
+                        font.letterSpacing: 1.0
                     }
                 }
             }
