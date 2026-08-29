@@ -311,16 +311,27 @@ Window {
                                 Layout.fillHeight: true
                                 spacing: 0
 
-                                Text {
-                                    text: agentNarrator.ready
-                                          ? "RIGHT NOW  ·  " + agentNarrator.agentName.toUpperCase() + " SYNOPSIS"
-                                          : agentNarrator.state === "thinking"
-                                            ? "RIGHT NOW  ·  ASKING " + agentNarrator.agentName.toUpperCase()
-                                            : "RIGHT NOW"
-                                    color: root.statusColor
-                                    font.family: appTheme.monoFont
-                                    font.pixelSize: 10
-                                    font.letterSpacing: 1.6
+                                RowLayout {
+                                    spacing: 7
+
+                                    AgentSpinner {
+                                        running: agentNarrator.state === "thinking"
+                                        spinnerColor: root.statusColor
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+
+                                    Text {
+                                        text: agentNarrator.ready
+                                              ? "RIGHT NOW  ·  " + agentNarrator.agentName.toUpperCase() + " SYNOPSIS"
+                                              : agentNarrator.state === "thinking"
+                                                ? "RIGHT NOW  ·  ASKING " + agentNarrator.agentName.toUpperCase()
+                                                : "RIGHT NOW"
+                                        color: root.statusColor
+                                        font.family: appTheme.monoFont
+                                        font.pixelSize: 10
+                                        font.letterSpacing: 1.6
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
                                 }
 
                                 Item { Layout.preferredHeight: 13 }

@@ -32,6 +32,7 @@ qt_add_qml_module(butter
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/AgentSpinner.qml
         qml/ButterGlyph.qml
         qml/ButterMark.qml
         qml/ButterWordmark.qml
