@@ -1,0 +1,260 @@
+#include "ShadowCommon.h"
+
+#include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonObject>
+#include <QLockFile>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QRegularExpression>
+#include <QStandardPaths>
+
+#include <sys/stat.h>
+#include <unistd.h>
+
+namespace {
+
+QString statusPath;
+
+int finish(const QString &state, const QString &title, const QString &detail,
+           const QJsonObject &extra = {}, int exitCode = 1) {
+  ShadowCommon::saveStatus(statusPath, state, title, detail, extra);
+  return exitCode;
+}
+
+bool differentDevice(const QString &source, const QString &destination) {
+  struct stat sourceStat{};
+  struct stat destinationStat{};
+  return ::stat(QFile::encodeName(source).constData(), &sourceStat) == 0 &&
+         ::stat(QFile::encodeName(destination).constData(), &destinationStat) ==
+             0 &&
+         sourceStat.st_dev != destinationStat.st_dev;
+}
+
+qulonglong statValue(const QByteArray &output, const QString &label) {
+  const QRegularExpression expression(
+      QStringLiteral("^%1:\\s*([0-9,]+)")
+          .arg(QRegularExpression::escape(label)),
+      QRegularExpression::MultilineOption);
+  const QRegularExpressionMatch match =
+      expression.match(QString::fromUtf8(output));
+  QString number = match.captured(1);
+  number.remove(QLatin1Char(','));
+  return number.toULongLong();
+}
+
+} // namespace
+
+int main(int argc, char *argv[]) {
+  QCoreApplication app(argc, argv);
+  app.setApplicationName(QStringLiteral("butter-shadow"));
+  const QStringList commandLine = app.arguments();
+  if (!commandLine.contains(QStringLiteral("--run")))
+    return 2;
+  QString configPath = ShadowCommon::configPath();
+  statusPath = ShadowCommon::statusPath();
+  const int configOption = commandLine.indexOf(QStringLiteral("--config"));
+  const int statusOption = commandLine.indexOf(QStringLiteral("--status"));
+  if (configOption >= 0 && configOption + 1 < commandLine.size())
+    configPath = commandLine.at(configOption + 1);
+  if (statusOption >= 0 && statusOption + 1 < commandLine.size())
+    statusPath = commandLine.at(statusOption + 1);
+  QLockFile lock(statusPath + QStringLiteral(".lock"));
+  lock.setStaleLockTime(6 * 60 * 60 * 1000);
+  if (!lock.tryLock(0))
+    return finish(
+        QStringLiteral("running"),
+        QStringLiteral("Home Shadow is already updating"),
+        QStringLiteral(
+            "Butter kept the existing run and did not start another."),
+        {}, 0);
+
+  ShadowCommon::Config config;
+  QString error;
+  if (!ShadowCommon::loadConfig(configPath, &config, &error))
+    return finish(QStringLiteral("error"),
+                  QStringLiteral("Home Shadow is not configured"), error);
+  if (config.machineId != ShadowCommon::machineId())
+    return finish(
+        QStringLiteral("error"),
+        QStringLiteral("This configuration belongs to another computer"),
+        QStringLiteral("Butter refused to reuse its drive identity."));
+
+  const ShadowCommon::MountInfo mount =
+      ShadowCommon::mountInfo(config.destinationPath);
+  const QString shadowRoot =
+      QDir(config.destinationPath).filePath(QStringLiteral(".butter-shadow"));
+  const QString identityPath =
+      QDir(shadowRoot).filePath(QStringLiteral("identity.json"));
+  ShadowCommon::Config identity;
+  if (!mount.valid || mount.uuid != config.mountUuid ||
+      !ShadowCommon::loadConfig(identityPath, &identity, &error) ||
+      identity.machineId != config.machineId ||
+      identity.destinationPath != config.destinationPath ||
+      !differentDevice(config.sourcePath, config.destinationPath)) {
+    return finish(QStringLiteral("waiting"),
+                  QStringLiteral("Waiting for the Shadow drive"),
+                  QStringLiteral(
+                      "The recorded drive is not mounted at the reviewed path. "
+                      "Nothing was written."),
+                  {}, 0);
+  }
+
+  const QString rsync = QStandardPaths::findExecutable(QStringLiteral("rsync"));
+  if (rsync.isEmpty())
+    return finish(QStringLiteral("error"),
+                  QStringLiteral("rsync is unavailable"),
+                  QStringLiteral("Install rsync before running Home Shadow."));
+
+  const QString generations =
+      QDir(shadowRoot).filePath(QStringLiteral("generations"));
+  const QString incomplete =
+      QDir(shadowRoot).filePath(QStringLiteral("incomplete"));
+  const QString receipts =
+      QDir(shadowRoot).filePath(QStringLiteral("receipts"));
+  if (!QDir().mkpath(generations) || !QDir().mkpath(incomplete) ||
+      !QDir().mkpath(receipts))
+    return finish(
+        QStringLiteral("error"),
+        QStringLiteral("The Shadow drive is not writable"),
+        QStringLiteral("Butter could not create its generation folders."));
+
+  const QString stamp = QDateTime::currentDateTimeUtc().toString(
+      QStringLiteral("yyyy-MM-ddTHHmmssZ"));
+  const QString generationName =
+      stamp + QLatin1Char('-') +
+      QString::number(QCoreApplication::applicationPid());
+  const QString stagingPath = QDir(incomplete).filePath(generationName);
+  const QString generationPath = QDir(generations).filePath(generationName);
+  if (!QDir().mkpath(stagingPath))
+    return finish(
+        QStringLiteral("error"),
+        QStringLiteral("A new generation could not start"),
+        QStringLiteral("Earlier completed generations remain untouched."));
+
+  const QString startedAt =
+      QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+  ShadowCommon::saveStatus(
+      statusPath, QStringLiteral("running"),
+      QStringLiteral("Updating Home Shadow"),
+      QStringLiteral("Building a new immutable generation."),
+      {{QStringLiteral("startedAt"), startedAt}});
+
+  QStringList arguments = {QStringLiteral("--archive"),
+                           QStringLiteral("--hard-links"),
+                           QStringLiteral("--acls"),
+                           QStringLiteral("--xattrs"),
+                           QStringLiteral("--one-file-system"),
+                           QStringLiteral("--modify-window=-1"),
+                           QStringLiteral("--partial"),
+                           QStringLiteral("--stats"),
+                           QStringLiteral("--human-readable")};
+  for (const QString &exclude : config.excludes) {
+    QString clean = QDir::cleanPath(exclude);
+    if (clean.isEmpty() || clean == QLatin1String(".") ||
+        clean.startsWith(QLatin1String("../")) ||
+        clean.startsWith(QLatin1Char('/')))
+      continue;
+    arguments.push_back(QStringLiteral("--exclude=/%1/***").arg(clean));
+  }
+
+  const QString currentPath =
+      QDir(shadowRoot).filePath(QStringLiteral("current"));
+  const QString previous = QFileInfo(currentPath).canonicalFilePath();
+  if (!previous.isEmpty() && ShadowCommon::isInside(previous, generations))
+    arguments.push_back(QStringLiteral("--link-dest=%1").arg(previous));
+  arguments.push_back(config.sourcePath + QLatin1Char('/'));
+  arguments.push_back(stagingPath + QLatin1Char('/'));
+
+  QProcess process;
+  QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+  environment.insert(QStringLiteral("LC_ALL"), QStringLiteral("C"));
+  process.setProcessEnvironment(environment);
+  process.setProgram(rsync);
+  process.setArguments(arguments);
+  process.start();
+  if (!process.waitForStarted(10000))
+    return finish(
+        QStringLiteral("error"), QStringLiteral("Home Shadow could not start"),
+        QStringLiteral(
+            "The incomplete generation was preserved for inspection."));
+  process.waitForFinished(-1);
+  const QByteArray output = process.readAllStandardOutput();
+  const QString standardError =
+      QString::fromUtf8(process.readAllStandardError()).trimmed();
+  const bool sourceChangedDuringCopy =
+      process.exitStatus() == QProcess::NormalExit && process.exitCode() == 24;
+  if (process.exitStatus() != QProcess::NormalExit ||
+      (process.exitCode() != 0 && !sourceChangedDuringCopy)) {
+    return finish(
+        QStringLiteral("error"),
+        QStringLiteral("Home Shadow stopped before completion"),
+        standardError.isEmpty()
+            ? QStringLiteral("The incomplete generation was kept; the last "
+                             "successful generation is still current.")
+            : standardError.section(QLatin1Char('\n'), -1),
+        {{QStringLiteral("startedAt"), startedAt},
+         {QStringLiteral("incompletePath"), stagingPath}});
+  }
+
+  if (!QDir().rename(stagingPath, generationPath))
+    return finish(QStringLiteral("error"),
+                  QStringLiteral("The completed copy could not be promoted"),
+                  QStringLiteral("It remains in the incomplete area and no "
+                                 "earlier generation was changed."));
+
+  const QString temporaryLink =
+      QDir(shadowRoot)
+          .filePath(QStringLiteral(".current-%1")
+                        .arg(QCoreApplication::applicationPid()));
+  const QByteArray linkTarget =
+      QFile::encodeName(QStringLiteral("generations/") + generationName);
+  if (::symlink(linkTarget.constData(),
+                QFile::encodeName(temporaryLink).constData()) != 0 ||
+      ::rename(QFile::encodeName(temporaryLink).constData(),
+               QFile::encodeName(currentPath).constData()) != 0)
+    return finish(QStringLiteral("error"),
+                  QStringLiteral("The generation is safe but not current"),
+                  QStringLiteral("Butter preserved it and left the previous "
+                                 "current pointer unchanged."));
+
+  const QString finishedAt =
+      QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+  const qulonglong sourceBytes =
+      statValue(output, QStringLiteral("Total file size"));
+  const qulonglong transferredBytes =
+      statValue(output, QStringLiteral("Total transferred file size"));
+  const int generationCount =
+      QDir(generations)
+          .entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)
+          .size();
+  const QJsonObject receipt = {
+      {QStringLiteral("schema"), 1},
+      {QStringLiteral("generation"), generationName},
+      {QStringLiteral("startedAt"), startedAt},
+      {QStringLiteral("finishedAt"), finishedAt},
+      {QStringLiteral("sourceBytes"), static_cast<qint64>(sourceBytes)},
+      {QStringLiteral("transferredBytes"),
+       static_cast<qint64>(transferredBytes)},
+      {QStringLiteral("generationCount"), generationCount},
+      {QStringLiteral("excludedPaths"), config.excludes.size()}};
+  ShadowCommon::saveJson(
+      QDir(receipts).filePath(generationName + QStringLiteral(".json")),
+      receipt, nullptr);
+  return finish(
+      QStringLiteral("current"),
+      sourceChangedDuringCopy
+          ? QStringLiteral("Home Shadow captured a changing Home")
+          : QStringLiteral("Home Shadow is current"),
+      QStringLiteral("%1 completed generation%2 · %3")
+          .arg(generationCount)
+          .arg(generationCount == 1 ? QString() : QStringLiteral("s"))
+          .arg(sourceChangedDuringCopy
+                   ? QStringLiteral(
+                         "a few transient files vanished during the copy")
+                   : QStringLiteral("nothing is pruned automatically")),
+      receipt, 0);
+}
