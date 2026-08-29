@@ -1,4 +1,5 @@
 #include "ShadowCommon.h"
+#include "SpaceHistory.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -103,12 +104,16 @@ int main(int argc, char *argv[]) {
     return 2;
   QString configPath = ShadowCommon::configPath();
   statusPath = ShadowCommon::statusPath();
+  QString historyPath = SpaceHistory::historyPath();
   const int configOption = commandLine.indexOf(QStringLiteral("--config"));
   const int statusOption = commandLine.indexOf(QStringLiteral("--status"));
+  const int historyOption = commandLine.indexOf(QStringLiteral("--history"));
   if (configOption >= 0 && configOption + 1 < commandLine.size())
     configPath = commandLine.at(configOption + 1);
   if (statusOption >= 0 && statusOption + 1 < commandLine.size())
     statusPath = commandLine.at(statusOption + 1);
+  if (historyOption >= 0 && historyOption + 1 < commandLine.size())
+    historyPath = commandLine.at(historyOption + 1);
   QLockFile lock(statusPath + QStringLiteral(".lock"));
   lock.setStaleLockTime(6 * 60 * 60 * 1000);
   if (!lock.tryLock(0))
@@ -129,6 +134,12 @@ int main(int argc, char *argv[]) {
         QStringLiteral("error"),
         QStringLiteral("This configuration belongs to another computer"),
         QStringLiteral("Butter refused to reuse its drive identity."));
+
+  const SpaceHistory::Capacity sourceCapacity =
+      SpaceHistory::measure(config.sourcePath);
+  if (sourceCapacity.valid)
+    SpaceHistory::record(sourceCapacity.freeBytes, sourceCapacity.totalBytes,
+                         QStringLiteral("shadow"), historyPath);
 
   const ShadowCommon::MountInfo mount =
       ShadowCommon::mountInfo(config.destinationPath);

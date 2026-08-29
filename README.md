@@ -20,6 +20,7 @@ directory is replaced.
 ## v0 scope
 
 - Read-only Btrfs capacity and allocation pressure
+- A subtle free-space history gathered across app launches and Shadow runs
 - Persistent device-error counters
 - Omarchy Snapper retention and timeline policy
 - Limine recovery entries visible at startup
@@ -36,6 +37,12 @@ filesystems, or inspect the rest of the OS. It runs with reduced CPU priority
 and idle-class disk I/O, streams partial totals, and can be stopped without
 discarding the results gathered so far. Butter keeps a bounded drill-down model
 rather than retaining a record for every file it sees.
+
+The Right Now card keeps a small local free-space ledger and draws the actual
+free fraction as a quiet background horizon. Butter records once per app
+process and once when Home Shadow is invoked, coalesces observations within 15
+minutes, and retains up to 800 points from roughly the last year. The ledger
+contains timestamps and capacity numbers only—no filenames or directory data.
 
 Known regenerable project artifacts can be removed only from their evidence
 modal. Butter re-detects the artifact at the exact reviewed path inside Home,

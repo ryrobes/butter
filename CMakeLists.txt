@@ -19,6 +19,7 @@ qt_add_executable(butter
     src/HomeScanner.cpp
     src/HomeShadow.cpp
     src/ShadowCommon.cpp
+    src/SpaceHistory.cpp
     src/RecoveryAudit.cpp
     src/ThemeBridge.cpp
 )
@@ -35,6 +36,7 @@ qt_add_qml_module(butter
         qml/ChromeButton.qml
         qml/RecoveryRail.qml
         qml/SpaceArc.qml
+        qml/SpaceHistoryArea.qml
         qml/Surface.qml
         qml/Treemap.qml
     RESOURCES
@@ -54,6 +56,7 @@ target_compile_definitions(butter PRIVATE BUTTER_VERSION="${PROJECT_VERSION}")
 qt_add_executable(butter-shadow
     src/ButterShadow.cpp
     src/ShadowCommon.cpp
+    src/SpaceHistory.cpp
 )
 target_include_directories(butter-shadow PRIVATE src)
 target_link_libraries(butter-shadow PRIVATE Qt6::Core)
@@ -82,6 +85,7 @@ if(BUILD_TESTING)
         src/HomeScanner.cpp
         src/HomeShadow.cpp
         src/ShadowCommon.cpp
+        src/SpaceHistory.cpp
         src/RecoveryAudit.cpp
     )
     target_include_directories(butter_backend_test PRIVATE src)

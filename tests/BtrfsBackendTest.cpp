@@ -3,6 +3,7 @@
 #include "HomeShadow.h"
 #include "RecoveryAudit.h"
 #include "ShadowCommon.h"
+#include "SpaceHistory.h"
 
 #include <QDir>
 #include <QFile>
@@ -33,6 +34,7 @@ private slots:
   void rejectsUnreviewedArtifactRemoval();
   void buildsShadowExclusions();
   void usesProcessIndependentShadowStatusPath();
+  void recordsBoundedSpaceHistory();
   void preservesShadowGenerations();
   void validatesShadowDestinations();
 };
@@ -247,11 +249,42 @@ void BtrfsBackendTest::usesProcessIndependentShadowStatusPath() {
   const QString originalName = QCoreApplication::applicationName();
   QCoreApplication::setApplicationName(QStringLiteral("butter"));
   const QString appPath = ShadowCommon::statusPath();
+  const QString appHistoryPath = SpaceHistory::historyPath();
   QCoreApplication::setApplicationName(QStringLiteral("butter-shadow"));
   const QString helperPath = ShadowCommon::statusPath();
+  const QString helperHistoryPath = SpaceHistory::historyPath();
   QCoreApplication::setApplicationName(originalName);
   QCOMPARE(appPath, helperPath);
+  QCOMPARE(appHistoryPath, helperHistoryPath);
   QVERIFY(appPath.endsWith(QStringLiteral("/butter/home-shadow-status.json")));
+}
+
+void BtrfsBackendTest::recordsBoundedSpaceHistory() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString path =
+      QDir(directory.path()).filePath(QStringLiteral("space-history.json"));
+  const QDateTime now = QDateTime::fromString(
+      QStringLiteral("2026-08-29T12:00:00Z"), Qt::ISODate);
+  QVERIFY(SpaceHistory::record(500, 1000, QStringLiteral("old"), path,
+                               now.addDays(-371)));
+  QVERIFY(SpaceHistory::record(400, 1000, QStringLiteral("app"), path, now));
+  QVERIFY(SpaceHistory::record(390, 1000, QStringLiteral("shadow"), path,
+                               now.addSecs(5 * 60)));
+  QVariantList samples = SpaceHistory::read(path);
+  QCOMPARE(samples.size(), 1);
+  QCOMPARE(
+      samples.first().toMap().value(QStringLiteral("freeBytes")).toULongLong(),
+      390ULL);
+  QCOMPARE(samples.first().toMap().value(QStringLiteral("source")).toString(),
+           QStringLiteral("shadow"));
+
+  QVERIFY(SpaceHistory::record(300, 1000, QStringLiteral("app"), path,
+                               now.addDays(1)));
+  samples = SpaceHistory::read(path);
+  QCOMPARE(samples.size(), 2);
+  QCOMPARE(samples.last().toMap().value(QStringLiteral("freeRatio")).toDouble(),
+           0.3);
 }
 
 void BtrfsBackendTest::preservesShadowGenerations() {
@@ -306,6 +339,8 @@ void BtrfsBackendTest::preservesShadowGenerations() {
       QDir(source.path()).filePath(QStringLiteral("config.json"));
   const QString statusPath =
       QDir(source.path()).filePath(QStringLiteral("status.json"));
+  const QString historyPath =
+      QDir(source.path()).filePath(QStringLiteral("history.json"));
   QVERIFY(ShadowCommon::saveJson(configPath, ShadowCommon::toJson(config),
                                  nullptr));
   QVERIFY(ShadowCommon::saveJson(
@@ -317,7 +352,8 @@ void BtrfsBackendTest::preservesShadowGenerations() {
   auto run = [&](int expectedExitCode = 0) {
     QProcess process;
     process.start(helper, {QStringLiteral("--run"), QStringLiteral("--config"),
-                           configPath, QStringLiteral("--status"), statusPath});
+                           configPath, QStringLiteral("--status"), statusPath,
+                           QStringLiteral("--history"), historyPath});
     QVERIFY(process.waitForFinished(30000));
     QCOMPARE(process.exitCode(), expectedExitCode);
   };

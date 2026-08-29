@@ -155,6 +155,13 @@ Window {
                         tint: appTheme.alpha(appTheme.blend(appTheme.lighterBackground,
                                                             root.statusColor, 0.08), 0.78)
 
+                        SpaceHistoryArea {
+                            anchors.fill: parent
+                            anchors.margins: 1
+                            samples: filesystem.spaceHistory
+                            traceColor: root.statusColor
+                        }
+
                         RowLayout {
                             anchors.fill: parent
                             anchors.margins: 28

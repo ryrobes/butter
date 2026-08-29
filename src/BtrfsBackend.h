@@ -17,6 +17,7 @@ class BtrfsBackend : public FilesystemBackend {
   Q_PROPERTY(double usedPercent READ usedPercent NOTIFY stateChanged)
   Q_PROPERTY(double freePercent READ freePercent NOTIFY stateChanged)
   Q_PROPERTY(double dataChunkPercent READ dataChunkPercent NOTIFY stateChanged)
+  Q_PROPERTY(QVariantList spaceHistory READ spaceHistory NOTIFY stateChanged)
   Q_PROPERTY(int deviceErrors READ deviceErrors NOTIFY stateChanged)
   Q_PROPERTY(int snapshotLimit READ snapshotLimit NOTIFY stateChanged)
   Q_PROPERTY(bool timelineEnabled READ timelineEnabled NOTIFY stateChanged)
@@ -65,6 +66,7 @@ public:
   double usedPercent() const { return m_usedPercent; }
   double freePercent() const { return m_freePercent; }
   double dataChunkPercent() const { return m_dataChunkPercent; }
+  QVariantList spaceHistory() const { return m_spaceHistory; }
   int deviceErrors() const { return m_deviceErrors; }
   int snapshotLimit() const { return m_snapshotLimit; }
   bool timelineEnabled() const { return m_timelineEnabled; }
@@ -124,6 +126,8 @@ private:
   double m_usedPercent = 0;
   double m_freePercent = 0;
   double m_dataChunkPercent = 0;
+  QVariantList m_spaceHistory;
+  bool m_historyRecorded = false;
   int m_deviceErrors = 0;
   int m_snapshotLimit = 0;
   bool m_timelineEnabled = false;

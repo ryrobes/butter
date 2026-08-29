@@ -1,5 +1,7 @@
 #include "BtrfsBackend.h"
 
+#include "SpaceHistory.h"
+
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -252,6 +254,11 @@ void BtrfsBackend::refresh() {
   m_freePercent = m_totalBytes > 0 ? 100.0 * static_cast<double>(m_freeBytes) /
                                          static_cast<double>(m_totalBytes)
                                    : 0;
+  if (!m_historyRecorded && m_totalBytes > 0) {
+    m_historyRecorded =
+        SpaceHistory::record(m_freeBytes, m_totalBytes, QStringLiteral("app"));
+  }
+  m_spaceHistory = SpaceHistory::read();
 
   const QString snapperConfig = QStringLiteral("/etc/snapper/configs/root");
   m_snapshotLimit =
