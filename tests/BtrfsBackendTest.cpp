@@ -271,21 +271,28 @@ void BtrfsBackendTest::recordsBoundedSpaceHistory() {
       QDir(directory.path()).filePath(QStringLiteral("space-history.json"));
   const QDateTime now = QDateTime::fromString(
       QStringLiteral("2026-08-29T12:00:00Z"), Qt::ISODate);
-  QVERIFY(SpaceHistory::record(500, 1000, QStringLiteral("old"), path,
-                               now.addDays(-371)));
-  QVERIFY(SpaceHistory::record(400, 1000, QStringLiteral("app"), path, now));
-  QVERIFY(SpaceHistory::record(390, 1000, QStringLiteral("shadow"), path,
+  QVERIFY(SpaceHistory::record(500'000'000, 1'000'000'000,
+                               QStringLiteral("old"), path, now.addDays(-371)));
+  QVERIFY(SpaceHistory::record(400'000'000, 1'000'000'000,
+                               QStringLiteral("app"), path, now));
+  QVERIFY(SpaceHistory::record(390'000'000, 1'000'000'000,
+                               QStringLiteral("shadow"), path,
                                now.addSecs(5 * 60)));
   QVariantList samples = SpaceHistory::read(path);
   QCOMPARE(samples.size(), 1);
   QCOMPARE(
       samples.first().toMap().value(QStringLiteral("freeBytes")).toULongLong(),
-      390ULL);
+      390'000'000ULL);
+  QCOMPARE(samples.first()
+               .toMap()
+               .value(QStringLiteral("freeMegabytes"))
+               .toULongLong(),
+           390ULL);
   QCOMPARE(samples.first().toMap().value(QStringLiteral("source")).toString(),
            QStringLiteral("shadow"));
 
-  QVERIFY(SpaceHistory::record(300, 1000, QStringLiteral("app"), path,
-                               now.addDays(1)));
+  QVERIFY(SpaceHistory::record(300'000'000, 1'000'000'000,
+                               QStringLiteral("app"), path, now.addDays(1)));
   samples = SpaceHistory::read(path);
   QCOMPARE(samples.size(), 2);
   QCOMPARE(samples.last().toMap().value(QStringLiteral("freeRatio")).toDouble(),

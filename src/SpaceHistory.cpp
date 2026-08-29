@@ -96,6 +96,9 @@ QVariantList read(const QString &filePath) {
     item.insert(QStringLiteral("atMs"), sample.observedAt.toMSecsSinceEpoch());
     item.insert(QStringLiteral("freeBytes"), sample.freeBytes);
     item.insert(QStringLiteral("totalBytes"), sample.totalBytes);
+    item.insert(QStringLiteral("freeMegabytes"),
+                static_cast<qulonglong>(qRound64(
+                    static_cast<double>(sample.freeBytes) / 1'000'000.0)));
     item.insert(QStringLiteral("freeRatio"),
                 static_cast<double>(sample.freeBytes) /
                     static_cast<double>(sample.totalBytes));

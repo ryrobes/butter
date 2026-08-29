@@ -24,12 +24,28 @@ Item {
             var top = 16
             var bottom = height - 1
             var plotHeight = Math.max(1, bottom - top)
+            var minimumMb = Number(root.samples[0].freeMegabytes)
+            var maximumMb = minimumMb
+            for (var s = 1; s < root.samples.length; ++s) {
+                var freeMb = Number(root.samples[s].freeMegabytes)
+                minimumMb = Math.min(minimumMb, freeMb)
+                maximumMb = Math.max(maximumMb, freeMb)
+            }
+            var observedRangeMb = maximumMb - minimumMb
+            var domainRangeMb = Math.max(1, observedRangeMb)
+            var domainPaddingMb = domainRangeMb * 0.14
+            var domainHeightMb = domainRangeMb + domainPaddingMb * 2
             var points = []
             for (var i = 0; i < root.samples.length; ++i) {
                 var sample = root.samples[i]
                 var x = width * (Number(sample.atMs) - firstTime) / timeSpan
-                var ratio = Math.max(0, Math.min(1, Number(sample.freeRatio)))
-                points.push({ x: x, y: bottom - ratio * plotHeight })
+                var normalizedMb = Number(sample.freeMegabytes) - minimumMb
+                var normalizedRatio = observedRangeMb === 0
+                                      ? 0.5
+                                      : (normalizedMb + domainPaddingMb) /
+                                        domainHeightMb
+                points.push({ x: x,
+                              y: bottom - normalizedRatio * plotHeight })
             }
             if (points.length === 1)
                 points.push({ x: width, y: points[0].y })
@@ -47,17 +63,17 @@ Item {
             }
 
             tracePath()
-            ctx.lineWidth = 1.25
-            ctx.strokeStyle = appTheme.alpha(root.traceColor, 0.24)
+            ctx.lineWidth = 1.5
+            ctx.strokeStyle = appTheme.alpha(root.traceColor, 0.36)
             ctx.stroke()
 
             ctx.lineTo(width, bottom)
             ctx.lineTo(0, bottom)
             ctx.closePath()
             var wash = ctx.createLinearGradient(0, top, 0, bottom)
-            wash.addColorStop(0, appTheme.alpha(root.traceColor, 0.01))
-            wash.addColorStop(0.72, appTheme.alpha(root.traceColor, 0.035))
-            wash.addColorStop(1, appTheme.alpha(root.traceColor, 0.13))
+            wash.addColorStop(0, appTheme.alpha(root.traceColor, 0.015))
+            wash.addColorStop(0.72, appTheme.alpha(root.traceColor, 0.055))
+            wash.addColorStop(1, appTheme.alpha(root.traceColor, 0.16))
             ctx.fillStyle = wash
             ctx.fill()
 
