@@ -771,41 +771,53 @@ Window {
                                 }
                             }
 
-                            ColumnLayout {
+                            RowLayout {
                                 visible: homeShadow.configured
-                                Layout.preferredWidth: 220
-                                spacing: 2
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: homeShadow.generationCount +
-                                          (homeShadow.generationCount === 1
-                                           ? " completed generation"
-                                           : " completed generations")
-                                    color: appTheme.foreground
-                                    font.family: appTheme.sansFont
-                                    font.pixelSize: 11
-                                    horizontalAlignment: Text.AlignRight
+                                Layout.preferredWidth: 250
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 12
+
+                                ButterGlyph {
+                                    Layout.preferredWidth: 54
+                                    Layout.preferredHeight: 40
+                                    Layout.alignment: Qt.AlignVCenter
+                                    variant: "stick"
+                                    lineColor: appTheme.accent
+                                    opacity: 0.42
                                 }
-                                Text {
+
+                                ColumnLayout {
                                     Layout.fillWidth: true
-                                    text: homeShadow.exclusionCount + " excluded paths" +
-                                          (homeShadow.excludedBytes > 0
-                                           ? "  ·  " + root.formatBytes(homeShadow.excludedBytes)
-                                           : "")
-                                    color: appTheme.muted
-                                    font.family: appTheme.monoFont
-                                    font.pixelSize: 9
-                                    horizontalAlignment: Text.AlignRight
-                                }
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: homeShadow.lastRun.length
-                                          ? "Last complete " + homeShadow.lastRun
-                                          : homeShadow.nextRun
-                                    color: appTheme.muted
-                                    font.family: appTheme.sansFont
-                                    font.pixelSize: 10
-                                    horizontalAlignment: Text.AlignRight
+                                    spacing: 2
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: homeShadow.generationCount +
+                                              (homeShadow.generationCount === 1
+                                               ? " completed generation"
+                                               : " completed generations")
+                                        color: appTheme.foreground
+                                        font.family: appTheme.sansFont
+                                        font.pixelSize: 11
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: homeShadow.exclusionCount + " excluded paths" +
+                                              (homeShadow.excludedBytes > 0
+                                               ? "  ·  " + root.formatBytes(homeShadow.excludedBytes)
+                                               : "")
+                                        color: appTheme.muted
+                                        font.family: appTheme.monoFont
+                                        font.pixelSize: 9
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: homeShadow.lastRun.length
+                                              ? "Last complete " + homeShadow.lastRun
+                                              : homeShadow.nextRun
+                                        color: appTheme.muted
+                                        font.family: appTheme.sansFont
+                                        font.pixelSize: 10
+                                    }
                                 }
                             }
 
