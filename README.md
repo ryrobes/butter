@@ -8,7 +8,8 @@ user-confirmed Home Shadow are explicit, narrowly bounded exceptions.
 ## Install on Omarchy or Arch
 
 Until the AUR package is available, install the current public release from
-source:
+source. Butter builds natively on both `x86_64` and ARM64 (`aarch64`); the same
+commands apply on either architecture:
 
 ```bash
 sudo pacman -S --needed base-devel cmake ninja qt6-base qt6-declarative rsync btrfs-progs polkit
@@ -32,6 +33,10 @@ git pull --ff-only
 
 The installer does not alter Butter's Home Shadow configuration, completed
 generations, scan history, or free-space history.
+
+Every push and pull request is compiled and tested on native x86_64 and ARM64
+GitHub runners. The ARM job uses Qt's Linux `aarch64` desktop build rather than
+cross-compiling or running under emulation.
 
 ## Build without installing
 

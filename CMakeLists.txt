@@ -7,6 +7,23 @@ include(GNUInstallDirs)
 set(BUTTER_POLKIT_ACTION_DIR
     "${CMAKE_INSTALL_DATADIR}/polkit-1/actions"
     CACHE PATH "Install directory for Butter's Polkit actions")
+set(BUTTER_EXPECTED_ARCHITECTURE "" CACHE STRING
+    "Required native target architecture (for CI and packaging checks)")
+
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" BUTTER_TARGET_ARCHITECTURE)
+if(BUTTER_TARGET_ARCHITECTURE MATCHES "^(arm64|aarch64)$")
+    set(BUTTER_TARGET_ARCHITECTURE "aarch64")
+elseif(BUTTER_TARGET_ARCHITECTURE MATCHES "^(amd64|x86_64)$")
+    set(BUTTER_TARGET_ARCHITECTURE "x86_64")
+endif()
+
+if(BUTTER_EXPECTED_ARCHITECTURE AND
+   NOT BUTTER_TARGET_ARCHITECTURE STREQUAL BUTTER_EXPECTED_ARCHITECTURE)
+    message(FATAL_ERROR
+        "Butter expected ${BUTTER_EXPECTED_ARCHITECTURE}, but CMake targets "
+        "${BUTTER_TARGET_ARCHITECTURE}")
+endif()
+message(STATUS "Butter target architecture: ${BUTTER_TARGET_ARCHITECTURE}")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

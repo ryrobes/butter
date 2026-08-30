@@ -1,0 +1,77 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native-linux:
+    name: Linux ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64
+            runner: ubuntu-24.04
+            machine: x86_64
+            file_marker: x86-64
+            qt_host: linux
+            qt_arch: linux_gcc_64
+          - name: aarch64
+            runner: ubuntu-24.04-arm
+            machine: aarch64
+            file_marker: aarch64
+            qt_host: linux_arm64
+            qt_arch: linux_gcc_arm64
+
+    steps:
+      - name: Check out Butter
+        uses: actions/checkout@v7
+
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            cmake \
+            file \
+            libgl1-mesa-dev \
+            libxkbcommon-dev \
+            ninja-build \
+            rsync
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          host: ${{ matrix.qt_host }}
+          target: desktop
+          arch: ${{ matrix.qt_arch }}
+          cache: true
+
+      - name: Verify native runner
+        run: test "$(uname -m)" = "${{ matrix.machine }}"
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build-ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUTTER_EXPECTED_ARCHITECTURE=${{ matrix.machine }}
+
+      - name: Build
+        run: cmake --build build-ci --parallel
+
+      - name: Verify executable architecture
+        run: |
+          file build-ci/butter
+          file build-ci/butter | grep --fixed-strings "${{ matrix.file_marker }}"
+
+      - name: Test
+        run: ctest --test-dir build-ci --output-on-failure
+
+      - name: Verify install layout
+        run: DESTDIR="${RUNNER_TEMP}/butter-stage" cmake --install build-ci
