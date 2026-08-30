@@ -19,6 +19,7 @@ class HomeScanner : public QObject {
   Q_PROPERTY(QString focusPath READ focusPath NOTIFY stateChanged)
   Q_PROPERTY(QString focusLabel READ focusLabel NOTIFY stateChanged)
   Q_PROPERTY(bool canGoUp READ canGoUp NOTIFY stateChanged)
+  Q_PROPERTY(bool terminalAvailable READ terminalAvailable CONSTANT)
   Q_PROPERTY(QVariantList entries READ entries NOTIFY stateChanged)
   Q_PROPERTY(QVariantList buildFindings READ buildFindings NOTIFY stateChanged)
   Q_PROPERTY(
@@ -51,6 +52,7 @@ public:
   QString focusPath() const { return m_focusPath; }
   QString focusLabel() const;
   bool canGoUp() const { return m_focusPath != m_rootPath; }
+  bool terminalAvailable() const;
   QVariantList entries() const { return m_entries; }
   QVariantList buildFindings() const { return m_buildFindings; }
   QVariantList shadowFindings() const { return m_shadowFindings; }
@@ -73,12 +75,15 @@ public:
   Q_INVOKABLE void cancelScan();
   Q_INVOKABLE void openPath(const QString &path);
   Q_INVOKABLE void goUp();
+  Q_INVOKABLE bool openTerminal();
   Q_INVOKABLE void refreshDocker();
   Q_INVOKABLE void removeArtifact(const QString &path, const QString &type);
 
   static qulonglong parseHumanBytes(const QString &text);
   static QVariantList parseDockerReport(const QByteArray &output);
   static bool isRemovableArtifactType(const QString &type);
+  static QString safeTerminalDirectory(const QString &path,
+                                       const QString &homePath);
 
 signals:
   void stateChanged();

@@ -82,6 +82,24 @@ QString HomeScanner::focusLabel() const {
       .arg(QDir(m_rootPath).relativeFilePath(m_focusPath));
 }
 
+bool HomeScanner::terminalAvailable() const {
+  return !QStandardPaths::findExecutable(QStringLiteral("xdg-terminal-exec"))
+              .isEmpty();
+}
+
+QString HomeScanner::safeTerminalDirectory(const QString &path,
+                                           const QString &homePath) {
+  const QFileInfo homeInfo(homePath);
+  const QFileInfo pathInfo(path);
+  const QString canonicalHome = homeInfo.canonicalFilePath();
+  const QString canonicalPath = pathInfo.canonicalFilePath();
+
+  if (canonicalHome.isEmpty() || canonicalPath.isEmpty() || !homeInfo.isDir() ||
+      !pathInfo.isDir() || !isInside(canonicalPath, canonicalHome))
+    return {};
+  return canonicalPath;
+}
+
 void HomeScanner::startScan() {
   if ((m_scanThread && m_scanThread->isRunning()) ||
       (m_cleanupProcess && m_cleanupProcess->state() != QProcess::NotRunning))
@@ -145,6 +163,24 @@ void HomeScanner::goUp() {
   m_focusPath = parent;
   rebuildEntries();
   emit stateChanged();
+}
+
+bool HomeScanner::openTerminal() {
+  const QString directory = safeTerminalDirectory(m_focusPath, m_rootPath);
+  const QString terminal =
+      QStandardPaths::findExecutable(QStringLiteral("xdg-terminal-exec"));
+  if (directory.isEmpty() || terminal.isEmpty())
+    return false;
+
+  const QStringList arguments = {QStringLiteral("--dir=%1").arg(directory)};
+  const QString uwsm =
+      QStandardPaths::findExecutable(QStringLiteral("uwsm-app"));
+  if (!uwsm.isEmpty()) {
+    QStringList wrappedArguments = {QStringLiteral("--"), terminal};
+    wrappedArguments.append(arguments);
+    return QProcess::startDetached(uwsm, wrappedArguments);
+  }
+  return QProcess::startDetached(terminal, arguments);
 }
 
 void HomeScanner::keepLargeFile(QVector<FileStats> &files,

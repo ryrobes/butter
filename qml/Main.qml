@@ -261,7 +261,8 @@ Window {
 
                 ChromeButton {
                     label: filesystem.busy ? "Checking" : "Check again"
-                    glyph: filesystem.busy ? "·" : "↻"
+                    glyph: filesystem.busy ? "·" : ""
+                    iconName: filesystem.busy ? "" : "refresh"
                     enabled: !filesystem.busy
                     onTriggered: filesystem.refresh()
                 }
@@ -1030,7 +1031,9 @@ Window {
                                             ? "Try again" : "Run now")
                                        : "Choose a drive"
                                 glyph: homeShadow.configured
-                                       ? (homeShadow.busy ? "·" : "↻") : "＋"
+                                       ? (homeShadow.busy ? "·" : "") : "＋"
+                                iconName: homeShadow.configured && !homeShadow.busy
+                                          ? "refresh" : ""
                                 enabled: !homeShadow.busy &&
                                          homeShadow.state !== "waiting"
                                 onTriggered: {
@@ -1185,7 +1188,8 @@ Window {
                                 ChromeButton {
                                     visible: homeSpace.state !== "scanning"
                                     label: homeSpace.state === "idle" ? "Scan home" : "Scan again"
-                                    glyph: homeSpace.state === "idle" ? "→" : "↻"
+                                    glyph: homeSpace.state === "idle" ? "→" : ""
+                                    iconName: homeSpace.state === "idle" ? "" : "refresh"
                                     onTriggered: homeSpace.startScan()
                                 }
                                 ChromeButton {
@@ -1272,6 +1276,14 @@ Window {
                                             glyph: "←"
                                             quiet: true
                                             onTriggered: homeSpace.goUp()
+                                        }
+                                        ChromeButton {
+                                            visible: homeSpace.canGoUp &&
+                                                     homeSpace.terminalAvailable
+                                            label: "Terminal here"
+                                            iconName: "terminal"
+                                            quiet: true
+                                            onTriggered: homeSpace.openTerminal()
                                         }
                                         Text {
                                             Layout.fillWidth: true
@@ -1573,6 +1585,7 @@ Window {
                                             ChromeButton {
                                                 implicitHeight: 26
                                                 label: "Refresh"
+                                                iconName: "refresh"
                                                 quiet: true
                                                 onTriggered: homeSpace.refreshDocker()
                                             }

@@ -8,6 +8,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
@@ -34,6 +35,7 @@ private slots:
   void parsesDockerAccounting();
   void classifiesRemovableArtifacts();
   void rejectsUnreviewedArtifactRemoval();
+  void validatesTerminalDirectories();
   void buildsShadowExclusions();
   void usesProcessIndependentShadowStatusPath();
   void recordsBoundedSpaceHistory();
@@ -227,6 +229,32 @@ void BtrfsBackendTest::rejectsUnreviewedArtifactRemoval() {
   scanner.removeArtifact(QStringLiteral("/"), QStringLiteral("rust"));
   QCOMPARE(scanner.cleanupState(), QStringLiteral("error"));
   QCOMPARE(scanner.cleanupTitle(), QStringLiteral("Butter stopped safely"));
+}
+
+void BtrfsBackendTest::validatesTerminalDirectories() {
+  QTemporaryDir home;
+  QTemporaryDir outside;
+  QVERIFY(home.isValid());
+  QVERIFY(outside.isValid());
+
+  const QString project =
+      QDir(home.path()).filePath(QStringLiteral("work/project"));
+  QVERIFY(QDir().mkpath(project));
+  QCOMPARE(HomeScanner::safeTerminalDirectory(project, home.path()),
+           QFileInfo(project).canonicalFilePath());
+  QVERIFY(HomeScanner::safeTerminalDirectory(outside.path(), home.path())
+              .isEmpty());
+
+  const QString file = QDir(home.path()).filePath(QStringLiteral("notes.txt"));
+  QFile notes(file);
+  QVERIFY(notes.open(QIODevice::WriteOnly));
+  notes.close();
+  QVERIFY(HomeScanner::safeTerminalDirectory(file, home.path()).isEmpty());
+
+  const QString escape =
+      QDir(home.path()).filePath(QStringLiteral("outside-link"));
+  QVERIFY(QFile::link(outside.path(), escape));
+  QVERIFY(HomeScanner::safeTerminalDirectory(escape, home.path()).isEmpty());
 }
 
 void BtrfsBackendTest::buildsShadowExclusions() {

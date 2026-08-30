@@ -59,10 +59,12 @@ qt_add_qml_module(butter
         qml/ButterWordmark.qml
         qml/ChromeButton.qml
         qml/RecoveryRail.qml
+        qml/RefreshGlyph.qml
         qml/ShadowGhost.qml
         qml/SpaceArc.qml
         qml/SpaceHistoryArea.qml
         qml/Surface.qml
+        qml/TerminalGlyph.qml
         qml/Treemap.qml
     RESOURCES
         assets/butter.svg

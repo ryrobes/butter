@@ -4,6 +4,7 @@ FocusScope {
     id: root
     property string label: ""
     property string glyph: ""
+    property string iconName: ""
     property bool quiet: false
     signal triggered()
 
@@ -37,7 +38,7 @@ FocusScope {
 
         Item {
             id: iconCell
-            visible: root.glyph.length > 0
+            visible: root.glyph.length > 0 || root.iconName.length > 0
             width: 15
             height: 16
             anchors.left: parent.left
@@ -45,12 +46,29 @@ FocusScope {
 
             Text {
                 anchors.fill: parent
+                visible: root.iconName.length === 0
                 text: root.glyph
                 color: appTheme.foreground
                 font.family: appTheme.sansFont
                 font.pixelSize: 14
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
+            }
+
+            RefreshGlyph {
+                anchors.centerIn: parent
+                visible: root.iconName === "refresh"
+                width: 14
+                height: 14
+                glyphColor: appTheme.foreground
+            }
+
+            TerminalGlyph {
+                anchors.centerIn: parent
+                visible: root.iconName === "terminal"
+                width: 14
+                height: 14
+                glyphColor: appTheme.foreground
             }
         }
 
